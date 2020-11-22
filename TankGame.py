@@ -137,8 +137,10 @@ class Tank(MovingObject):
         self.radius = GetDistance(self.x, self.y, self.x + 0.5 * (self.rect.width + self.CannonW),
                                   self.y + 0.5 * (self.rect.height + self.CannonH))
         self.GunDirection = 0  # 射撃口の向き
-        self.shot_x = self.x + 0.5 * (self.rect.width - self.CannonW) - self.radius * math.sin(math.pi * 0.5)        # 射撃位置のx座標
-        self.shot_y = self.y + 0.5 * (self.rect.height - self.CannonH) - self.radius * math.cos(math.pi * 0.5)       # 射撃位置のy座標
+        self.shot_x = self.x + 0.5 * (self.rect.width - self.CannonW) - self.radius * math.sin(
+            math.pi * 0.5)  # 射撃位置のx座標
+        self.shot_y = self.y + 0.5 * (self.rect.height - self.CannonH) - self.radius * math.cos(
+            math.pi * 0.5)  # 射撃位置のy座標
 
         self.log = []  # 位置のログ
 
@@ -175,9 +177,8 @@ class Tank(MovingObject):
         # マウスカーソルの位置を取得
         mouse_pos = pygame.mouse.get_pos()
         # 戦車の中心とマウスカーソルとの角度を求める
-        self.GunDirection = GetCannonAngle(self.x + 0.5 * self.rect.width, self.y + 0.5 * self.rect.height,
-                                           int(mouse_pos[0]),
-                                           int(mouse_pos[1]))
+        self.GunDirection = GetCannonAngle(int(mouse_pos[0]), int(mouse_pos[1]),
+                                           self.x + 0.5 * self.rect.width, self.y + 0.5 * self.rect.height)
         # 射撃口の描画
         self.DrawGun()
 
@@ -202,8 +203,8 @@ class Tank(MovingObject):
     # 射撃砲台の描画
     def DrawGun(self):
         # 射撃ポイントを求める
-        self.shot_x = self.x + 0.5 * (self.rect.width - self.CannonW) - self.radius * math.sin(self.GunDirection)
-        self.shot_y = self.y + 0.5 * (self.rect.height - self.CannonH) - self.radius * math.cos(self.GunDirection)
+        self.shot_x = self.x + 0.5 * (self.rect.width - self.CannonW) + self.radius * math.sin(self.GunDirection)
+        self.shot_y = self.y + 0.5 * (self.rect.height - self.CannonH) + self.radius * math.cos(self.GunDirection)
 
         shot_x = self.shot_x + 0.5 * self.CannonW
         shot_y = self.shot_y + 0.5 * self.CannonH
@@ -228,7 +229,7 @@ class Enemy(Tank):
         width = self.rect.width
         height = self.rect.height
         self.serch = Rect(x - 1.5 * width, y - 1.5 * height, 4 * width, 4 * height)  # 感知範囲
-        self.frames = 0  # 射撃間隔を測る際に仕様
+        self.frames = 0  # 射撃間隔を測る際に使用
 
     def update(self):
         if all_object.has(player):
@@ -279,12 +280,12 @@ class Enemy(Tank):
     def Shot(self):
         self.frames += 1
 
-        if self.frames > 30:
+        if self.frames > 30:  # 30フレームごとに射撃可能
             self.frames = 0
-            rad = self.ShotStrategy(player.sprite)
+            rad = self.ShotStrategy(player.sprite)  # 射撃する角度を求める
 
             # 指定された方向に撃つ
-            if rad is not None:
+            if rad:
                 # 射撃ポイントを求める
                 self.shot_x = self.x + 0.5 * (self.rect.width - self.CannonW) + self.radius * math.sin(rad)
                 self.shot_y = self.y + 0.5 * (self.rect.height - self.CannonH) + self.radius * math.cos(rad)
@@ -293,7 +294,7 @@ class Enemy(Tank):
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
                     self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
-                self.GunDirection = rad + math.pi  # 射撃口の向きを更新
+                self.GunDirection = rad  # 射撃口の向きを更新
 
         # 射撃口の描画
         self.DrawGun()
@@ -320,7 +321,7 @@ class Enemy(Tank):
             if dis < 60:  # プレイヤーとの距離が近い場合
                 (x, y) = (player.x, player.y)  # 相手の今いる位置に射撃
             else:
-                return None
+                return 0
 
         rad = self.GetShotAngle(x, y)
 
@@ -441,7 +442,7 @@ def load_img(filename, colorkey=None):
     return img
 
 
-# 砲弾の角度を得る
+# 砲弾の角度を得る（1：対象物　2：発射点）
 def GetCannonAngle(x1, y1, x2, y2):
     return math.atan2(x1 - x2, y1 - y2)
 

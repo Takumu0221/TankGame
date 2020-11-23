@@ -230,6 +230,7 @@ class Enemy(Tank):
         height = self.rect.height
         self.serch = Rect(x - 1.5 * width, y - 1.5 * height, 4 * width, 4 * height)  # 感知範囲
         self.frames = 0  # 射撃間隔を測る際に使用
+        self.burst = 0  # 3点バーストにするための変数
 
     def update(self):
         if all_object.has(player):
@@ -294,6 +295,7 @@ class Enemy(Tank):
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
                     self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+
                 self.GunDirection = rad  # 射撃口の向きを更新
 
         # 射撃口の描画
@@ -305,21 +307,25 @@ class Enemy(Tank):
         (x, y) = (0, 0)  # 射撃位置
 
         if cannon_num == 0:  # 相手の今いる位置に射撃
-            (x, y) = (player.sprite.x, player.sprite.y)
+            (x, y) = player.sprite.rect.center
+            self.burst = 1
 
         elif cannon_num == 1:  # 偏差射撃（逆）
-            x, y = self.GetDeviationPosition(target)
-            x = player.sprite.x * 2 - x
-            y = player.sprite.x * 2 - y
+            if self.burst:
+                x, y = self.GetDeviationPosition(target)
+                x = player.sprite.x * 2 - x
+                y = player.sprite.x * 2 - y
 
         elif cannon_num == 2:  # 偏差射撃
-            x, y = self.GetDeviationPosition(target)
+            if self.burst:
+                x, y = self.GetDeviationPosition(target)
+                self.burst = 0
 
         elif 3 <= cannon_num < 5:  # 残りの砲弾
             dis = GetDistance(self.x, self.y, player.sprite.x, player.sprite.y)  # プレイヤーとの距離を測定
 
             if dis < 60:  # プレイヤーとの距離が近い場合
-                (x, y) = (player.x, player.y)  # 相手の今いる位置に射撃
+                (x, y) = player.sprite.rect.center  # 相手の今いる位置に射撃
             else:
                 return 0
 
@@ -328,7 +334,8 @@ class Enemy(Tank):
         return rad
 
     # 偏差位置を求める
-    def GetDeviationPosition(self, target):
+    @staticmethod
+    def GetDeviationPosition(target):
         dis = 20  # 偏差距離
         (x_now, y_now) = (target.log[0][0], target.log[0][1])  # 現在の位置
         (x_prev, y_prev) = (target.log[1][0], target.log[1][1])  # 一フレーム前の位置
@@ -338,17 +345,19 @@ class Enemy(Tank):
 
         # 偏差位置を計算
         if rad:
-            (x, y) = (x_now + dis * math.cos(rad), y_now + dis * math.sin(rad))
+            (x, y) = (target.rect.centerx + dis * math.cos(rad), target.rect.centery + dis * math.sin(rad))
         else:
-            (x, y) = (x_now, y_now)
+            (x, y) = target.rect.center
 
         return x, y
 
     # どの方向に射撃するかを決定する
     def GetShotAngle(self, x, y):
-        rad = GetCannonAngle(x, y, self.x, self.y)
+        rad = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)
 
         return rad
+
+    # def MoveSimulation(self, x, y):
 
     # 敵戦車の弾避け
     def Dodge(self):
@@ -505,8 +514,8 @@ def main():
     global y_target, x_target
     Tank("tank_0.png", w / 4, h / 2, 1)
 
-    for i in range(1, 4):
-        Enemy("tank_1.png", w * 3 / 4, h * i / 4, 1, 0, 0, time.time())
+    for i in range(1, 2):
+        Enemy("tank_1.png", w * 3 / 4, h * i / 2, 1, 0, 0, time.time())
 
     # オブジェクト生成
     Map.images[0] = load_img("tile.png")  # 地面

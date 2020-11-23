@@ -505,8 +505,8 @@ def main():
     global y_target, x_target
     Tank("tank_0.png", w / 4, h / 2, 1)
 
-    for i in range(1, 3):
-        Enemy("tank_1.png", w * 3 / 4, h * i / 3, 1, 0, 0, time.time())
+    for i in range(1, 4):
+        Enemy("tank_1.png", w * 3 / 4, h * i / 4, 1, 0, 0, time.time())
 
     # オブジェクト生成
     Map.images[0] = load_img("tile.png")  # 地面

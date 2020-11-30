@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import pygame
 from pygame.locals import *
-import numpy as np
 import math
 import sys
 

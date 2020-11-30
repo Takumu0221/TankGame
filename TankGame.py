@@ -11,6 +11,14 @@ import random
 
 (x_target, y_target) = (0, 0)  # 目標位置
 
+# 敵戦車移動に関するウェイト(0→移動に影響しない)
+AD = 0  # 味方との距離の重視度合い(AiiesDistance)
+ED = 1  # 敵との距離の重視度合い(EnemyDistance)
+WD = 2  # 壁との距離の重視度合い(WallsDistance)
+AC = 4  # 弾丸回避の重要度合い(AvoidingCannon)
+# プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
+GD = 240
+
 
 # マップ
 class Map:
@@ -259,12 +267,11 @@ class Enemy(Tank):
         height = self.rect.height
         self.serch = Rect(x - 1.5 * width, y - 1.5 * height, 4 * width, 4 * height)  # 感知範囲
         self.frames = 0  # 射撃間隔を測る際に使用
+        self.CD_list = []  # 移動方向を決定するリスト
         self.burst = 0  # 3点バーストにするための変数
 
     def update(self):
-        if all_object.has(player.sprite):
-            self.Dodge()  # 戦車弾避け
-
+        if all_object.has(player):
             self.Move()  # 戦車の移動
 
             # 砲弾の発射
@@ -278,6 +285,19 @@ class Enemy(Tank):
             # 座標の記録
             self.log.insert(0, [self.x, self.y])
 
+    ###################### プレイヤーとの距離感に対するバネの力の方向 ##################
+    def Sense_of_Distance(self):
+        distance = GetDistance(player.sprite.x, player.sprite.y, self.x, self.y)
+        change = distance - GD
+        if change > 0:
+            return 1
+        else:
+            return -1
+
+    ###################### どの方向に移動するか決定する行列に要素を追加 #################
+    def Add_CD_list(self, weight, dx, dy):
+        self.CD_list.append([weight, dx, dy])
+
     # 敵戦車の移動
     def Move(self):
         result = self.DetectCollision()
@@ -285,6 +305,46 @@ class Enemy(Tank):
         # 砲弾と衝突した時
         if result[0] == 1:
             self.kill()
+
+        ##################### ここら辺に移動戦略関数 ########################
+        # 初期化
+        self.CD_list = []
+
+        # プレイヤー向きの方向ベクトルを算出
+        angle = GetCannonAngle(player.sprite.x, player.sprite.y, self.x, self.y)
+        dx, dy = GetVelocity(angle, self.v)
+        # 方向ベクトルを正規化
+        dev = math.sqrt(dx ** 2 + dy ** 2)
+        dx = dx / dev
+        dy = dy / dev
+        # 重みの導出 (プレイヤーの現在地-心地よい距離GD)*ED
+        weight = ED * self.Sense_of_Distance()
+        # 移動先を決定する行列に追加
+        self.Add_CD_list(weight, dx, dy)
+
+        # まっつん追加スペース
+        # 弾避けベクトルを求める
+        for c in cannons:
+            nx, ny, d = self.CannonDodge(c)
+            if nx == -1 and ny == -1 and d == -1:
+                continue
+            else:
+                weight = AC * 1 / d
+                self.Add_CD_list(weight, nx, ny)
+
+        # 壁避けベクトルを求める
+        for w in walls:
+            wx, wy, d = self.WallDodge(w)
+            if wx == -1 and wx == -1 and d == -1:
+                continue
+            else:
+                weight = WD * 1 / d
+                self.Add_CD_list(1 / d, wx, wy)
+
+        # 各戦車の移動を計算
+        # self.dx, self.dy = GetSpeed(self.CD_list)
+        vx, vy = GetSpeed(self.CD_list)
+        self.GetSpeed2(vx, vy)
 
         # 戦車との当たり判定
         if result[1][0] > 0 and self.dx > 0 or result[1][1] > 0 and self.dx < 0:
@@ -310,7 +370,7 @@ class Enemy(Tank):
     def Shot(self):
         self.frames += 1
 
-        if self.frames > 30:  # 20フレームごとに射撃可能
+        if self.frames > 30:  # 30フレームごとに射撃可能
             self.frames = 0
             rad = self.ShotStrategy(player.sprite)  # 射撃する角度を求める
 
@@ -464,44 +524,67 @@ class Enemy(Tank):
 
             return [result, [x, y]]
 
-    # 敵戦車の弾避け
-    def Dodge(self):
-        herfwidth = 0.5 * self.rect.width
-        herfheight = 0.5 * self.rect.height
-        L_MAX = 0  # 最も長い点と直線の距離の判定
-        # D_MAX = 0 # 最も長い距離の判定
-        Nearest = 0.5 * self.serch.width  # 最も近い弾の判定
-        for c in cannons:  # 全ての砲弾グループに対して
-            if self.serch.collidepoint(c.x, c.y):  # 感知範囲との接触判定
-                distance = GetDistance(self.x + herfwidth, self.y + herfheight, c.x, c.y)  # 戦車と弾の現在距離
-                # 戦車の中心に近づくかどうか
-                if distance > GetDistance(self.x + herfwidth, self.y + herfheight, c.x + c.dx, c.y + c.dy):
-                    # 最近傍の弾についてのみ処理
-                    if Nearest > distance:
-                        Nearest = distance
-                        for i in range(-1, 2):
-                            for j in range(-1, 2):
-                                # ベクトルを用いて点(戦車)と直線(弾道)の予測距離を求める
-                                r = GetCannonAngle(self.x + herfwidth + i * self.v, self.y + herfheight + j * self.v,
-                                                   c.x + c.dx, c.y + c.dy)
-                                vx, vy = GetVelocity(r, 1)
-                                L = abs(c.dx * vy - c.dy * vx) / math.sqrt(c.dx ** 2 + c.dy ** 2)
-                                if L > L_MAX:  # 距離が最大となるように移動
-                                    L_MAX = L
-                                    self.dx = i * self.v
-                                    self.dy = j * self.v
-                # else:
-                #    for i in range(-1,2):
-                #        for j in range(-1,2):
-                #            # 弾との予測距離が最大となるように移動
-                #            d = GetDistance(self.x + herfwidth + i * self.v, self.y + herfheight + j * self.v, c.x + c.dx, c.y + c.dy)
-                #            if d > D_MAX and L_MAX == 0:
-                #                D_MAX = d
-                #                self.dx = i * self.v
-                #                self.dy = j * self.v
-            elif L_MAX == 0:
-                self.dx = 0
-                self.dy = 0
+    # 敵戦車弾除けベクトル(法線ベクトル)返還
+    def CannonDodge(self, c):
+        # 感知範囲との接触判定
+        if self.serch.collidepoint(c.x, c.y):
+            # 近づく弾かどうか
+            if GetDistance(self.rect.centerx, self.rect.centery, c.x, c.y) > GetDistance(self.rect.centerx,
+                                                                                         self.rect.centery, c.x + c.dx,
+                                                                                         c.y + c.dy):
+                # 法線＝(c.dy/c.dx, -1) or c.dxが0のとき(1,0)
+                if c.dx == 0:
+                    nx = -1
+                    ny = 0
+                else:
+                    nx = c.dy / c.dx
+                    ny = -1
+                # 正規化
+                d = math.sqrt(nx ** 2 + ny ** 2)
+                nx = nx / d
+                ny = ny / d
+
+                r = GetCannonAngle(self.rect.centerx, self.rect.centery, c.x, c.y)
+                vx, vy = GetVelocity(r, 1)
+                direction = c.dx * vy - c.dy * vx  # 法線の方向決定
+                distance = abs(direction) / math.sqrt(c.dx ** 2 + c.dy ** 2)  # 戦車の中心と弾道との距離
+                # 弾道に近づかないように
+                if (direction >= 0 or c.dx < 0) and not (direction >= 0 and c.dx < 0):
+                    nx = -nx
+                    ny = -ny
+                return nx, ny, distance
+            else:
+                return -1, -1, -1
+        else:
+            return -1, -1, -1
+
+    # 敵戦車の壁避けベクトル返還
+    def WallDodge(self, w):
+        dx = 0
+        dy = 0
+        if self.serch.colliderect(w.rect):  # 感知範囲との接触判定
+            wt_x = self.x - w.x  # 戦車と壁とのx、yの直線距離
+            wt_y = self.y - w.y
+            if abs(wt_x) >= abs(wt_y):  # 戦車と壁がx、y方向でどちらが大きく離れてるか(離れてる方向が壁と接触してる)
+                dx = int(math.copysign(self.v, wt_x))
+            else:
+                dy = int(math.copysign(self.v, wt_y))
+            return dx, dy, GetDistance(self.x, self.y, w.x, w.y)
+        else:
+            return -1, -1, -1
+
+    def GetSpeed2(self, vx, vy):
+        # 最終的な移動方向決定
+        # 単位円を考えたときにそのx，y方向を1とするか0とするか
+        if abs(vx) >= math.cos(3 * math.pi / 8):
+            self.dx = int(math.copysign(self.v, vx))
+        else:
+            self.dx = 0
+
+        if abs(vy) >= math.sin(math.pi / 8):
+            self.dy = int(math.copysign(self.v, vy))
+        else:
+            self.dy = 0
 
 
 # 砲弾
@@ -556,6 +639,22 @@ def load_img(filename, colorkey=None):
     return img
 
 
+############### 行列を計算して速度を得る ################
+def GetSpeed(List):
+    result = [0.0, 0.0]
+    for i in List:
+        result[0] += i[0] * i[1]
+        result[1] += i[0] * i[2]
+    dev = math.sqrt(result[0] ** 2 + result[1] ** 2)
+    if not dev == 0:
+        result[0] = result[0] / dev  # 正規化
+        result[1] = result[1] / dev  # 正規化
+    else:
+        result[0] = 0
+        result[1] = 0
+    return result[0], result[1]
+
+
 # 砲弾の角度を得る（1：対象物　2：発射点）
 def GetCannonAngle(x1, y1, x2, y2):
     return math.atan2(x1 - x2, y1 - y2)
@@ -569,6 +668,15 @@ def GetDistance(x1, y1, x2, y2):
 # 角度から縦・横方向成分を求める
 def GetVelocity(r, v):
     return math.sin(r) * math.sqrt(v), math.cos(r) * math.sqrt(v)
+
+
+# 残り敵数を返す関数
+def Aliving(enemies):
+    enemy_alive = 0
+    for e in enemies.sprites():
+        if e.alive():
+            enemy_alive += 1
+    return enemy_alive
 
 
 # 壁を配置
@@ -630,7 +738,7 @@ walls = pygame.sprite.Group()
 all_object = pygame.sprite.RenderUpdates()
 
 # グループ分け
-Player.containers = all_object, player
+Tank.containers = all_object, player
 Enemy.containers = all_object, enemies
 Cannon.containers = all_object, cannons
 Wall.containers = all_object, walls
@@ -653,6 +761,18 @@ def main():
     Map.images[1] = load_img("wall.png")  # 壁
     m = Map()
     MakeWalls(m)  # 壁を生成
+
+    # 敵戦車のウェイトを表示
+    print('Weight of Allies Distance:')
+    print(AD)
+    print('Weight of Enemy  Distance:')
+    print(ED)
+    print('Weight of Walls  Distance:')
+    print(WD)
+    print('Weight of Avoiding Cannon:')
+    print(AC)
+    print('Comfortable Distance:')
+    print(GD)
 
     while 1:
         pygame.time.wait(10)  # 更新時間間隔

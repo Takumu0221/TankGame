@@ -362,7 +362,15 @@ class Enemy(Tank):
 
         rad = self.GetShotAngle(x, y)
 
-        return rad
+        if self.JudgeAim(rad):
+            return rad
+
+        # 反射で狙えるか判定
+        rad -= math.pi * 0.5
+        parts = 18
+        for rad in [rad + math.pi * x / parts for x in range(1, parts)]:
+            if self.JudgeAim(rad):
+                return rad
 
     # 偏差位置を求める
     @staticmethod

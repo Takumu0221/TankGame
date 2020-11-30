@@ -18,12 +18,12 @@ class Map:
     map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
@@ -55,6 +55,7 @@ class MovingObject(pygame.sprite.Sprite):
     def __init__(self, filename, x, y, v):  # イメージファイル名・x座標・y座標・速さ
         pygame.sprite.Sprite.__init__(self, self.containers)
         self.containers = None
+        self.filename = filename
         self.image = load_img(filename)
         self.x = x  # x座標　（小数点以下まで含む）
         self.y = y  # y座標　（小数点以下まで含む）
@@ -70,8 +71,11 @@ class MovingObject(pygame.sprite.Sprite):
     # 当たり判定
     def DetectCollision(self):
         result = [0, [0, 0, 0, 0], [0, 0, 0, 0]]
+        objects = self.GetAllObjects()
 
-        for object_collied in pygame.sprite.spritecollide(self, all_object, False):
+        # print(self.groups())
+
+        for object_collied in pygame.sprite.spritecollide(self, objects, False):
             # 対象との各座標の差
             difference = [(object_collied.x + 0.5 * object_collied.rect.width) - (self.x + 0.5 * self.rect.width),
                           (object_collied.y + 0.5 * object_collied.rect.height) - (self.y + 0.5 * self.rect.height)]
@@ -83,7 +87,7 @@ class MovingObject(pygame.sprite.Sprite):
                     result[0] = 1
 
                 # 戦車との判定
-                if type(object_collied) is Tank:
+                if type(object_collied) is Player or type(object_collied) is Enemy:
                     # 衝突判定の閾値
                     threshold = [0.5 * (object_collied.rect.width + self.rect.width) - (object_collied.v + self.v),
                                  0.5 * (object_collied.rect.height + self.rect.height) - (object_collied.v + self.v)]
@@ -100,6 +104,10 @@ class MovingObject(pygame.sprite.Sprite):
                     if difference[1] <= -threshold[1]:  # 北方向
                         self.y = object_collied.y + object_collied.rect.height  # 位置補正
                         result[1][3] = 1
+
+                    # selfが砲弾の時，戦車をkill
+                    if type(self) is Cannon:
+                        object_collied.kill()
 
                 # 壁との判定
                 if type(object_collied) is Wall:
@@ -122,11 +130,18 @@ class MovingObject(pygame.sprite.Sprite):
 
         return result
 
+    def GetAllObjects(self):  # 所属するworldのall_objectを取得
+        result = pygame.sprite.Group()
+        for g in self.groups():
+            if len(result) < len(g):
+                result = g
+
+        return result
+
 
 # 戦車
 class Tank(MovingObject):
     CannonNum = 5  # 砲弾数
-    CannonSpeed = 2.0  # 砲弾速度
     CannonW = 10  # 砲弾の幅と高さ
     CannonH = 10
 
@@ -143,6 +158,45 @@ class Tank(MovingObject):
             math.pi * 0.5)  # 射撃位置のy座標
 
         self.log = []  # 位置のログ
+
+    # KILLされた砲弾を整理
+    def AdjustCannonList(self):
+        new_list = []
+        for cannon in self.CannonList:
+            if cannon.alive():  # 砲弾が崩壊していなければリストに追加
+                new_list.append(cannon)
+
+        self.CannonList = new_list
+
+    # 射撃砲台の描画
+    def DrawGun(self):
+        # 射撃ポイントを求める
+        self.shot_x, self.shot_y = self.GetShotPoint(self.GunDirection)
+
+        shot_x = self.shot_x + 0.5 * self.CannonW
+        shot_y = self.shot_y + 0.5 * self.CannonH
+
+        # 射撃砲台は線と丸で表現(仮)
+        if all_object.has(self):
+            pygame.draw.circle(screen, (0, 0, 0), (int(shot_x), int(shot_y)), int(0.5 * self.CannonW))
+            pygame.draw.line(screen, (0, 0, 0),
+                             (int(self.x + 0.5 * self.rect.width), int(self.y + 0.5 * self.rect.height)),
+                             (int(shot_x), int(shot_y)), int(0.5 * self.CannonW))
+
+    # 射撃ポイントを求める
+    def GetShotPoint(self, rad):
+        x = self.x + 0.5 * (self.rect.width - self.CannonW) + self.radius * math.sin(rad)
+        y = self.y + 0.5 * (self.rect.height - self.CannonH) + self.radius * math.cos(rad)
+
+        return x, y
+
+
+# プレイヤー戦車
+class Player(Tank):
+    CannonSpeed = 2.0  # 砲弾速度
+
+    def __init__(self, filename, x, y, v):
+        super().__init__(filename, x, y, v)
 
     def update(self):
         result = self.DetectCollision()
@@ -191,31 +245,6 @@ class Tank(MovingObject):
         if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
             self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
 
-    # KILLされた砲弾を整理
-    def AdjustCannonList(self):
-        new_list = []
-        for cannon in self.CannonList:
-            if cannon.alive():  # 砲弾が崩壊していなければリストに追加
-                new_list.append(cannon)
-
-        self.CannonList = new_list
-
-    # 射撃砲台の描画
-    def DrawGun(self):
-        # 射撃ポイントを求める
-        self.shot_x = self.x + 0.5 * (self.rect.width - self.CannonW) + self.radius * math.sin(self.GunDirection)
-        self.shot_y = self.y + 0.5 * (self.rect.height - self.CannonH) + self.radius * math.cos(self.GunDirection)
-
-        shot_x = self.shot_x + 0.5 * self.CannonW
-        shot_y = self.shot_y + 0.5 * self.CannonH
-
-        # 射撃砲台は線と丸で表現(仮)
-        if all_object.has(self):
-            pygame.draw.circle(screen, (0, 0, 0), (int(shot_x), int(shot_y)), int(0.5 * self.CannonW))
-            pygame.draw.line(screen, (0, 0, 0),
-                             (int(self.x + 0.5 * self.rect.width), int(self.y + 0.5 * self.rect.height)),
-                             (int(shot_x), int(shot_y)), int(0.5 * self.CannonW))
-
 
 # 敵戦車
 class Enemy(Tank):
@@ -230,9 +259,10 @@ class Enemy(Tank):
         height = self.rect.height
         self.serch = Rect(x - 1.5 * width, y - 1.5 * height, 4 * width, 4 * height)  # 感知範囲
         self.frames = 0  # 射撃間隔を測る際に使用
+        self.burst = 0  # 3点バーストにするための変数
 
     def update(self):
-        if all_object.has(player):
+        if all_object.has(player.sprite):
             self.Dodge()  # 戦車弾避け
 
             self.Move()  # 戦車の移動
@@ -280,21 +310,19 @@ class Enemy(Tank):
     def Shot(self):
         self.frames += 1
 
-        if self.frames > 30:  # 30フレームごとに射撃可能
+        if self.frames > 30:  # 20フレームごとに射撃可能
             self.frames = 0
             rad = self.ShotStrategy(player.sprite)  # 射撃する角度を求める
 
             # 指定された方向に撃つ
             if rad:
-                # 射撃ポイントを求める
-                self.shot_x = self.x + 0.5 * (self.rect.width - self.CannonW) + self.radius * math.sin(rad)
-                self.shot_y = self.y + 0.5 * (self.rect.height - self.CannonH) + self.radius * math.cos(rad)
+                self.GunDirection = rad  # 射撃口の向きを更新
+                self.shot_x, self.shot_y = self.GetShotPoint(rad)  # 射撃ポイントを求める
 
                 dx, dy = GetVelocity(rad, self.CannonSpeed)  # 砲弾の速度（x方向・y方向）を求める
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
                     self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
-                self.GunDirection = rad  # 射撃口の向きを更新
 
         # 射撃口の描画
         self.DrawGun()
@@ -303,52 +331,138 @@ class Enemy(Tank):
     def ShotStrategy(self, target):
         cannon_num = len(self.CannonList)  # 現在保有する砲弾の数
         (x, y) = (0, 0)  # 射撃位置
+        dev_dis = 100  # 偏差距離
 
         if cannon_num == 0:  # 相手の今いる位置に射撃
-            (x, y) = (player.sprite.x, player.sprite.y)
+            x, y = self.GetDeviationPosition(target, dev_dis)
+            self.burst = 1
 
-        elif cannon_num == 1:  # 偏差射撃（逆）
-            x, y = self.GetDeviationPosition(target)
-            x = player.sprite.x * 2 - x
-            y = player.sprite.x * 2 - y
+        elif cannon_num == 1:  # 偏差射撃（1.5倍）
+            if self.burst:
+                x, y = self.GetDeviationPosition(target, dev_dis * 1.5)
+                # x = player.sprite.rect.centerx * 2 - x
+                # y = player.sprite.rect.centery * 2 - y
+            else:
+                return 0
 
         elif cannon_num == 2:  # 偏差射撃
-            x, y = self.GetDeviationPosition(target)
+            if self.burst:
+                (x, y) = player.sprite.rect.center
+                self.burst = 0
+            else:
+                return 0
 
         elif 3 <= cannon_num < 5:  # 残りの砲弾
             dis = GetDistance(self.x, self.y, player.sprite.x, player.sprite.y)  # プレイヤーとの距離を測定
 
             if dis < 60:  # プレイヤーとの距離が近い場合
-                (x, y) = (player.x, player.y)  # 相手の今いる位置に射撃
+                (x, y) = player.sprite.rect.center  # 相手の今いる位置に射撃
             else:
                 return 0
 
         rad = self.GetShotAngle(x, y)
 
-        return rad
+        if self.JudgeAim(rad):
+            return rad
+
+        # 反射で狙えるか判定
+        rad -= math.pi * 0.5
+        parts = 18
+        for rad in [rad + math.pi * x / parts for x in range(1, parts)]:
+            if self.JudgeAim(rad):
+                return rad
 
     # 偏差位置を求める
-    def GetDeviationPosition(self, target):
-        dis = 20  # 偏差距離
+    @staticmethod
+    def GetDeviationPosition(target, dis):
         (x_now, y_now) = (target.log[0][0], target.log[0][1])  # 現在の位置
         (x_prev, y_prev) = (target.log[1][0], target.log[1][1])  # 一フレーム前の位置
 
-        # 標的の進む方向を得る
-        rad = GetCannonAngle(x_now, y_now, x_prev, y_prev)
-
         # 偏差位置を計算
-        if rad:
-            (x, y) = (x_now + dis * math.cos(rad), y_now + dis * math.sin(rad))
-        else:
-            (x, y) = (x_now, y_now)
+        if x_now - x_prev or y_now - y_prev:  # 速度が0より大きいとき
+            rad = GetCannonAngle(x_now, y_now, x_prev, y_prev)  # 標的の進む方向を得る
+            (x, y) = (target.rect.centerx + dis * math.cos(rad), target.rect.centery + dis * math.sin(rad))
+
+        else:  # 静止しているとき
+            (x, y) = target.rect.center  # 相手のいる位置を狙う
 
         return x, y
 
     # どの方向に射撃するかを決定する
     def GetShotAngle(self, x, y):
-        rad = GetCannonAngle(x, y, self.x, self.y)
+        # 直接狙えるか判定
+        rad = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)
 
-        return rad
+        if self.JudgeAim(rad):
+            return rad
+
+        # 反射で狙えるか判定
+        rad -= math.pi * 0.5
+        parts = 18
+        for rad in [rad + math.pi * x / parts for x in range(1, parts)]:
+            if self.JudgeAim(rad):
+                return rad
+
+        return 0
+
+    # 狙えるか判定する
+    def JudgeAim(self, rad):
+        shot_x, shot_y = self.GetShotPoint(rad)
+        dx, dy = GetVelocity(rad, self.CannonSpeed)
+
+        # シミュレーションを行う
+        result_direct = self.MoveSimulation(Cannon("cannon.png", shot_x, shot_y, self.CannonSpeed, dx, dy))
+        if type(result_direct[0]) is Player:  # シミュレーションした結果、プレイヤーに当たる時
+            return True
+        else:
+            return False
+
+    # 砲弾などの移動シミュレーション
+    @staticmethod
+    def MoveSimulation(o):
+        o.kill()  # 作成した時点でグループに入ってしまうので除外
+        objects = CopyWorld()  # シミュレーション用にworldを複製
+        objects_copy = [x for x in objects.sprites()]  # worldのコピー
+        objects.add(o)  # シミュレーション用の世界に対象を追加
+        collided_object = 0  # 衝突したオブジェクト
+        t = 0  # 繰り返し回数
+
+        while 1:
+            # コピーを作成
+            o_copy = o
+
+            o.update()
+            if t % 10 == 0:  # 10回に一回確認
+                if not objects.has(o_copy):  # 消滅したとき
+                    # print(objects, objects_copy)
+                    # 何と衝突して消滅したかを調べる
+                    for a in objects_copy:
+                        if not a.alive():
+                            collided_object = a
+
+                    # 座標を記録
+                    (x, y) = (o_copy.x, o_copy.y)
+
+                    break
+            t += 1
+
+        # シミュレーション用worldを削除
+        for a in objects.sprites():
+            a.kill()
+
+        if collided_object:  # 戦車や砲弾と衝突したとき
+            return [collided_object, [x, y]]
+
+        else:  # 対象の他に消滅した物体が無ければ壁と衝突したと判定
+            # 消滅した地点から最も近い壁を返す
+            result = Wall(load_img("wall.png"), -1, -1)
+            result.kill()
+            for wall in walls.sprites():
+                if GetDistance(result.rect.centerx, result.rect.centery, x, y) \
+                        > GetDistance(wall.rect.centerx, wall.rect.centery, x, y):
+                    result = wall
+
+            return [result, [x, y]]
 
     # 敵戦車の弾避け
     def Dodge(self):
@@ -403,7 +517,7 @@ class Cannon(MovingObject):
     def update(self):
         # 当たり判定
         result = self.DetectCollision()
-        # print(result)      #デバッグ用
+        # print(result)  # デバッグ用
 
         # 戦車・砲弾と衝突
         if result[0] + sum(result[1]) > 0:
@@ -465,6 +579,31 @@ def MakeWalls(m):
                 Wall(m.images[1], j * m.m_size, i * m.m_size)
 
 
+# worldのコピー
+def CopyWorld():
+    objects = pygame.sprite.Group()  # 新しいworld
+    new_object = 0  # 新しく生成したオブジェクト
+
+    # オブジェクトを一つ一つコピー
+    for o in all_object:
+        if type(o) is Player:
+            Player.containers = all_object
+            new_object = Player("tank_0.png", o.x, o.y, o.v)
+            Player.containers = all_object, player
+        elif type(o) is Enemy:
+            new_object = Enemy("tank_1.png", o.x, o.y, o.v, o.dx, o.dy, o.firetime)
+        elif type(o) is Wall:
+            new_object = Wall(o.image, o.x, o.y)
+        else:
+            new_object = Cannon("cannon.png", o.x, o.y, o.v, o.dx, o.dy)
+
+        if new_object:
+            new_object.kill()
+        objects.add(new_object)
+
+    return objects
+
+
 # 床の描画
 def DrawTiles(m):
     for i in range(m.row):
@@ -491,7 +630,7 @@ walls = pygame.sprite.Group()
 all_object = pygame.sprite.RenderUpdates()
 
 # グループ分け
-Tank.containers = all_object, player
+Player.containers = all_object, player
 Enemy.containers = all_object, enemies
 Cannon.containers = all_object, cannons
 Wall.containers = all_object, walls
@@ -503,10 +642,11 @@ def main():
 
     # 戦車の準備
     global y_target, x_target
-    Tank("tank_0.png", w / 4, h / 2, 1)
+    Player("tank_0.png", w / 4, h / 2, 1)
 
-    for i in range(1, 4):
-        Enemy("tank_1.png", w * 3 / 4, h * i / 4, 1, 0, 0, time.time())
+    enemy_num = 2
+    for i in range(1, enemy_num + 1):
+        Enemy("tank_1.png", w * 3 / 4, h * i / (enemy_num + 1), 1, 0, 0, time.time())
 
     # オブジェクト生成
     Map.images[0] = load_img("tile.png")  # 地面
@@ -525,7 +665,7 @@ def main():
             # print(player, enemies, cannons, walls)
 
         # プレイヤーがいなくなったとき
-        if not all_object.has(player):
+        if not all_object.has(player.sprite):
             DrawTiles(m)  # 背景として床を描画
             all_object.draw(screen)  # すべて描写
             enemies.update()
@@ -564,4 +704,5 @@ def main():
                     sys.exit()
 
 
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+    main()

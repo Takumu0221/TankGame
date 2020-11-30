@@ -1,0 +1,48 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="DuplicatedCode" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <Languages>
+        <language minSize="714" name="Python" />
+      </Languages>
+    </inspection_tool>
+    <inspection_tool class="PyChainedComparisonsInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoreConstantInTheMiddle" value="true" />
+    </inspection_tool>
+    <inspection_tool class="PyPep8Inspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="E266" />
+          <option value="E501" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="N802" />
+          <option value="N806" />
+          <option value="N803" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="str.append" />
+          <option value="object.append" />
+          <option value="int.rect" />
+          <option value="pygame.sprite.Sprite.DrawGun" />
+          <option value="pygame.sprite.Sprite.shot_x" />
+          <option value="pygame.sprite.Sprite.x" />
+          <option value="pygame.sprite.Sprite.y" />
+          <option value="pygame.sprite.Sprite.v" />
+          <option value="pygame.sprite.Sprite.dx" />
+          <option value="pygame.sprite.Sprite.*" />
+          <option value="pygame.sprite.GroupSingle.x" />
+          <option value="pygame.sprite.GroupSingle.y" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

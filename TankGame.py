@@ -393,11 +393,11 @@ class Enemy(Tank):
         (x, y) = (0, 0)  # 射撃位置
         dev_dis = 100  # 偏差距離
 
-        if cannon_num == 0:  # 相手の今いる位置に射撃
+        if cannon_num == 0 or cannon_num == 1:  # 相手の今いる位置に射撃
             x, y = self.GetDeviationPosition(target, dev_dis)
             self.burst = 1
 
-        elif cannon_num == 1:  # 偏差射撃（1.5倍）
+        elif cannon_num == 2:  # 偏差射撃（1.5倍）
             if self.burst:
                 x, y = self.GetDeviationPosition(target, dev_dis * 1.5)
                 # x = player.sprite.rect.centerx * 2 - x
@@ -405,14 +405,14 @@ class Enemy(Tank):
             else:
                 return 0
 
-        elif cannon_num == 2:  # 偏差射撃
+        elif cannon_num == 3:  # 偏差射撃
             if self.burst:
                 (x, y) = player.sprite.rect.center
                 self.burst = 0
             else:
                 return 0
 
-        elif 3 <= cannon_num < 5:  # 残りの砲弾
+        elif 4 <= cannon_num:  # 残りの砲弾
             dis = GetDistance(self.x, self.y, player.sprite.x, player.sprite.y)  # プレイヤーとの距離を測定
 
             if dis < 60:  # プレイヤーとの距離が近い場合

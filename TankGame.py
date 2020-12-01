@@ -57,8 +57,8 @@ class Wall(pygame.sprite.Sprite):
         screen.blit(self.image, self.rect)
 
     # 直線と壁が交わるか判定
-    def DetectReflection(self, P0, P1):
-        corners = [self.rect.topleft, self.rect.topright, self.rect.bottomleft, self.rect.bottomright]
+    def DetectIntersection(self, P0, P1):
+        corners = [self.rect.topleft, self.rect.topright, self.rect.bottomright, self.rect.bottomleft]
 
         points = []
         for i in range(len(corners)):
@@ -145,7 +145,7 @@ class MovingObject(pygame.sprite.Sprite):
                         object_collied.kill()
 
                 # 壁との判定
-                if walls.has(object_collied):
+                if type(object_collied) is InnerWall or type(object_collied) is OuterWall:
                     # 衝突判定の閾値
                     threshold = [0.5 * (object_collied.rect.width + self.rect.width) - self.v - 1,
                                  0.5 * (object_collied.rect.height + self.rect.height) - self.v - 1]
@@ -477,7 +477,7 @@ class Enemy(Tank):
 
         # 反射で狙えるか判定
         rad = self.ReflectionOuterWall()
-        print(rad)
+        # print(rad)
         if rad is not None:
             return rad
 
@@ -519,18 +519,18 @@ class Enemy(Tank):
             o_copy = o
 
             o.update()
-            if t % 10 == 0:  # 10回に一回確認
-                if not objects.has(o_copy):  # 消滅したとき
-                    # print(objects, objects_copy)
-                    # 何と衝突して消滅したかを調べる
-                    for a in objects_copy:
-                        if not a.alive():
-                            collided_object = a
+            if not objects.has(o_copy):  # 消滅したとき
+                # print(objects, objects_copy)
+                # 何と衝突して消滅したかを調べる
+                for a in objects_copy:
+                    if not a.alive():
+                        collided_object = a
 
-                    # 座標を記録
-                    (x, y) = (o_copy.x, o_copy.y)
+                # 座標を記録
+                (x, y) = (o_copy.x, o_copy.y)
 
-                    break
+                break
+
             t += 1
 
         # シミュレーション用worldを削除
@@ -564,14 +564,23 @@ class Enemy(Tank):
 
         # 外壁での反射で狙えるかの判定
         for p in players:
-            for o in false_image:
-                if type(o) is InnerWall:
-                    points = o.DetectReflection(self.rect.center, p.rect.center)  # 内壁の虚像の内，プレイヤーとプレイヤーの虚像を結んだ直線と交わるか判定
+            flag = 1
+            for o in innerwalls.sprites():
+                print(self.rect.center, p.rect.center)
+                points = o.DetectIntersection(self.rect.center, p.rect.center)  # 内壁の虚像の内，プレイヤーとプレイヤーの虚像を結んだ直線と交わるか判定
+                # print(points)
 
-                    if points is not None:  # 交わるとき
-                        return None
+                if len(points) > 0:  # 交わるとき
+                    flag = 0
+                    break
 
-            return GetCannonAngle(p.x, p.y, self.x, self.y)  # 外壁で反射した後、内壁の虚像に当たらないとき
+            if flag:  # 外壁で反射した後、内壁の虚像に当たらないとき
+                rad = GetCannonAngle(p.rect.x, p.rect.y, self.x, self.y)
+                break
+            else:  # 外壁で反射した後，内壁に当たるとき
+                rad = None
+
+        return rad
 
     # 敵戦車弾除けベクトル(法線ベクトル)返還
     def CannonDodge(self, c):
@@ -779,8 +788,10 @@ def CopyWorld():
             Player.containers = all_object, player
         elif type(o) is Enemy:
             new_object = Enemy("tank_1.png", o.x, o.y, o.v, o.dx, o.dy, o.firetime)
-        elif type(o) is InnerWall or type(o) is OuterWall:
-            new_object = Wall(o.image, o.x, o.y)
+        elif type(o) is InnerWall:
+            new_object = InnerWall(o.image, o.x, o.y)
+        elif type(o) is OuterWall:
+            new_object = OuterWall(o.image, o.x, o.y)
         else:
             new_object = Cannon("cannon.png", o.x, o.y, o.v, o.dx, o.dy)
 
@@ -817,13 +828,15 @@ def MakeFalseImage():
                     Player.containers = all_object
                     new_object = Player("tank_0.png", x, y, o.v)
                     Player.containers = all_object, player
+                    new_object.kill()
                 elif type(o) is Enemy:
                     new_object = Enemy("tank_1.png", x, y, o.v, o.dx, o.dy, o.firetime)
+                    new_object.kill()
                 else:
                     new_object = InnerWall(o.image, x, y)
+                    all_object.remove(new_object)
 
                 # グループを整理
-                new_object.kill()
                 false_image.add(new_object)
 
 
@@ -845,15 +858,20 @@ def UpdateFalseImage():
     for i in range(len(borders)):  # プレイヤー
         if i == 0 or i == 1:  # x方向の対称移動
             player_tanks[i].rect.x = 2 * borders[i] - player.sprite.rect.centerx - player_tanks[1].rect.width * 0.5
+            player_tanks[i].rect.y = player.sprite.rect.y
         else:  # y方向の対称移動
+            player_tanks[i].rect.x = player.sprite.rect.x
             player_tanks[i].rect.y = 2 * borders[i] - player.sprite.rect.centery - player_tanks[1].rect.height * 0.5
 
-    for e in enemies.sprites():
+    enemy_list = enemies.sprites()
+    for e in range(len(enemy_list)):
         for i in range(len(borders)):  # 敵
             if i == 0 or i == 1:  # x方向の対称移動
-                enemy_tanks[i].rect.x = 2 * borders[i] - e.rect.centerx - player_tanks[1].rect.width * 0.5
+                enemy_tanks[e * 4 + i].rect.x = 2 * borders[i] - enemy_list[e].rect.centerx - enemy_tanks[i].rect.width * 0.5
+                enemy_tanks[e * 4 + i].rect.y = enemy_list[e].rect.y
             else:  # y方向の対称移動
-                enemy_tanks[i].rect.y = 2 * borders[i] - e.rect.centery - player_tanks[1].rect.height * 0.5
+                enemy_tanks[e * 4 + i].rect.x = enemy_list[e].rect.x
+                enemy_tanks[e * 4 + i].rect.y = 2 * borders[i] - enemy_list[e].rect.centery - enemy_tanks[1].rect.height * 0.5
 
 
 # pygameの準備
@@ -925,6 +943,7 @@ def main():
             DrawTiles(m)  # 背景として床を描画
             all_object.draw(screen)  # すべて描写
             all_object.update()  # すべて更新
+            # false_image.draw(screen)
             # print(player, enemies, cannons, walls)
 
         # プレイヤーがいなくなったとき

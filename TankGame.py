@@ -40,15 +40,16 @@ class Map:
     m_size = 40  # 1マスの画像サイズ
 
 
-# 壁オブジェクト
-class Wall(pygame.sprite.Sprite):
+# オブジェクト
+class Object(pygame.sprite.Sprite):
     # 初期化
-    def __init__(self, img, x, y):
+    def __init__(self, filename, x, y):
         pygame.sprite.Sprite.__init__(self, self.containers)
         self.containers = None
-        self.image = img
-        self.x = x
-        self.y = y
+        self.image = load_img(filename)
+        self.filename = filename
+        self.x = x  # x座標　（小数点以下まで含む）
+        self.y = y  # y座標　（小数点以下まで含む）
         width = self.image.get_width()  # 横幅
         height = self.image.get_height()  # 縦幅
         self.rect = Rect(x, y, width, height)  # 四角形の宣言
@@ -56,7 +57,7 @@ class Wall(pygame.sprite.Sprite):
     def draw(self, screen):
         screen.blit(self.image, self.rect)
 
-    # 直線と壁が交わるか判定
+    # 直線とオブジェクトが交わるか判定
     def DetectIntersection(self, P0, P1):
         corners = [self.rect.topleft, self.rect.topright, self.rect.bottomright, self.rect.bottomleft]
 
@@ -68,6 +69,16 @@ class Wall(pygame.sprite.Sprite):
                 points.append(p)
 
         return points  # 交点のリストを返す
+
+
+# 壁オブジェクト
+class Wall(Object):
+    # 初期化
+    def __init__(self, filename, x, y):
+        super().__init__(filename, x, y)
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
 
 
 class InnerWall(Wall):
@@ -85,18 +96,10 @@ class OuterWall(Wall):
 
 
 # 移動オブジェクト
-class MovingObject(pygame.sprite.Sprite):
+class MovingObject(Object):
     # 初期化
     def __init__(self, filename, x, y, v):  # イメージファイル名・x座標・y座標・速さ
-        pygame.sprite.Sprite.__init__(self, self.containers)
-        self.containers = None
-        self.filename = filename
-        self.image = load_img(filename)
-        self.x = x  # x座標　（小数点以下まで含む）
-        self.y = y  # y座標　（小数点以下まで含む）
-        width = self.image.get_width()  # 横幅
-        height = self.image.get_height()  # 縦幅
-        self.rect = Rect(x, y, width, height)  # 四角形の宣言
+        super().__init__(filename, x, y)
         self.v = v
 
     # 描画
@@ -542,7 +545,7 @@ class Enemy(Tank):
 
         else:  # 対象の他に消滅した物体が無ければ壁と衝突したと判定
             # 消滅した地点から最も近い壁を返す
-            result = Wall(load_img("wall.png"), -1, -1)
+            result = Wall("wall.png", -1, -1)
             result.kill()
             for wall in walls.sprites():
                 if GetDistance(result.rect.centerx, result.rect.centery, x, y) \
@@ -563,6 +566,8 @@ class Enemy(Tank):
                 players.append(o)
 
         # 外壁での反射で狙えるかの判定
+        enemy_tanks = enemies.sprites() + [x for x in false_image if type(x) is Enemy]
+        # print(enemy_tanks)
         for p in players:
             flag = 1
             for o in innerwalls.sprites():
@@ -770,9 +775,9 @@ def MakeWalls(m):
         for j in range(m.col):
             if m.map[i][j]:
                 if 0 < i < m.row - 1 and 0 < j < m.col - 1:
-                    InnerWall(m.images[1], j * m.m_size, i * m.m_size)
+                    InnerWall("wall.png", j * m.m_size, i * m.m_size)
                 else:
-                    OuterWall(m.images[1], j * m.m_size, i * m.m_size)
+                    OuterWall("wall.png", j * m.m_size, i * m.m_size)
 
 
 # worldのコピー
@@ -789,9 +794,9 @@ def CopyWorld():
         elif type(o) is Enemy:
             new_object = Enemy("tank_1.png", o.x, o.y, o.v, o.dx, o.dy, o.firetime)
         elif type(o) is InnerWall:
-            new_object = InnerWall(o.image, o.x, o.y)
+            new_object = InnerWall(o.filename, o.x, o.y)
         elif type(o) is OuterWall:
-            new_object = OuterWall(o.image, o.x, o.y)
+            new_object = OuterWall(o.filename, o.x, o.y)
         else:
             new_object = Cannon("cannon.png", o.x, o.y, o.v, o.dx, o.dy)
 
@@ -833,7 +838,7 @@ def MakeFalseImage():
                     new_object = Enemy("tank_1.png", x, y, o.v, o.dx, o.dy, o.firetime)
                     new_object.kill()
                 else:
-                    new_object = InnerWall(o.image, x, y)
+                    new_object = InnerWall(o.filename, x, y)
                     all_object.remove(new_object)
 
                 # グループを整理
@@ -867,11 +872,13 @@ def UpdateFalseImage():
     for e in range(len(enemy_list)):
         for i in range(len(borders)):  # 敵
             if i == 0 or i == 1:  # x方向の対称移動
-                enemy_tanks[e * 4 + i].rect.x = 2 * borders[i] - enemy_list[e].rect.centerx - enemy_tanks[i].rect.width * 0.5
+                enemy_tanks[e * 4 + i].rect.x = 2 * borders[i] - enemy_list[e].rect.centerx - enemy_tanks[
+                    i].rect.width * 0.5
                 enemy_tanks[e * 4 + i].rect.y = enemy_list[e].rect.y
             else:  # y方向の対称移動
                 enemy_tanks[e * 4 + i].rect.x = enemy_list[e].rect.x
-                enemy_tanks[e * 4 + i].rect.y = 2 * borders[i] - enemy_list[e].rect.centery - enemy_tanks[1].rect.height * 0.5
+                enemy_tanks[e * 4 + i].rect.y = 2 * borders[i] - enemy_list[e].rect.centery - enemy_tanks[
+                    1].rect.height * 0.5
 
 
 # pygameの準備

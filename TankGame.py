@@ -566,7 +566,7 @@ class Enemy(Tank):
         for p in players:
             flag = 1
             for o in innerwalls.sprites():
-                print(self.rect.center, p.rect.center)
+                # print(self.rect.center, p.rect.center)
                 points = o.DetectIntersection(self.rect.center, p.rect.center)  # 内壁の虚像の内，プレイヤーとプレイヤーの虚像を結んだ直線と交わるか判定
                 # print(points)
 

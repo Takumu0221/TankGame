@@ -243,16 +243,16 @@ class Player(Tank):
         # キーイベント処理(キャラクタ画像の移動)
         pressed_key = pygame.key.get_pressed()
         if result[1][0] == 0 and result[2][0] == 0:
-            if pressed_key[K_RIGHT]:
+            if pressed_key[K_d]:
                 self.x += self.v
         if result[1][1] == 0 and result[2][1] == 0:
-            if pressed_key[K_LEFT]:
+            if pressed_key[K_a]:
                 self.x -= self.v
         if result[1][2] == 0 and result[2][2] == 0:
-            if pressed_key[K_DOWN]:
+            if pressed_key[K_s]:
                 self.y += self.v
         if result[1][3] == 0 and result[2][3] == 0:
-            if pressed_key[K_UP]:
+            if pressed_key[K_w]:
                 self.y -= self.v
 
         # 砲弾の整理

@@ -13,9 +13,9 @@ import random
 
 # 敵戦車移動に関するウェイト(0→移動に影響しない)
 AD = 0  # 味方との距離の重視度合い(AiiesDistance)
-ED = 1  # 敵との距離の重視度合い(EnemyDistance)
-WD = 2  # 壁との距離の重視度合い(WallsDistance)
-AC = 4  # 弾丸回避の重要度合い(AvoidingCannon)
+ED = 2  # 敵との距離の重視度合い(EnemyDistance)
+WD = 3  # 壁との距離の重視度合い(WallsDistance)
+AC = 5  # 弾丸回避の重要度合い(AvoidingCannon)
 # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
 GD = 240
 
@@ -55,6 +55,33 @@ class Wall(pygame.sprite.Sprite):
 
     def draw(self, screen):
         screen.blit(self.image, self.rect)
+
+    # 直線と壁が交わるか判定
+    def DetectIntersection(self, P0, P1):
+        corners = [self.rect.topleft, self.rect.topright, self.rect.bottomright, self.rect.bottomleft]
+
+        points = []
+        for i in range(len(corners)):
+            p = line_cross_point(corners[i], corners[(i + 1) % 4], P0, P1)  # 引数で指定された線分と壁の端との交点を求める
+
+            if p is not None:  # 交わるとき，交点を追加
+                points.append(p)
+
+        return points  # 交点のリストを返す
+
+
+class InnerWall(Wall):
+    # 初期化
+    def __init__(self, img, x, y):
+        super().__init__(img, x, y)
+
+
+class OuterWall(Wall):
+    corners = [[40, 40], [w - 40, 40], [40, h - 40], [w - 40, h - 40]]  # 四隅の座標（左上，右上，左下，右下）
+
+    # 初期化
+    def __init__(self, img, x, y):
+        super().__init__(img, x, y)
 
 
 # 移動オブジェクト
@@ -118,7 +145,7 @@ class MovingObject(pygame.sprite.Sprite):
                         object_collied.kill()
 
                 # 壁との判定
-                if type(object_collied) is Wall:
+                if type(object_collied) is InnerWall or type(object_collied) is OuterWall:
                     # 衝突判定の閾値
                     threshold = [0.5 * (object_collied.rect.width + self.rect.width) - self.v - 1,
                                  0.5 * (object_collied.rect.height + self.rect.height) - self.v - 1]
@@ -284,6 +311,9 @@ class Enemy(Tank):
             self.rect.y = self.y
             # 座標の記録
             self.log.insert(0, [self.x, self.y])
+            
+        # 射撃口の描画
+        self.DrawGun()
 
     ###################### プレイヤーとの距離感に対するバネの力の方向 ##################
     def Sense_of_Distance(self):
@@ -291,6 +321,8 @@ class Enemy(Tank):
         change = distance - GD
         if change > 0:
             return 1
+        elif change == 0:
+            return 0
         else:
             return -1
 
@@ -322,7 +354,6 @@ class Enemy(Tank):
         # 移動先を決定する行列に追加
         self.Add_CD_list(weight, dx, dy)
 
-        # まっつん追加スペース
         # 弾避けベクトルを求める
         for c in cannons:
             nx, ny, d = self.CannonDodge(c)
@@ -338,13 +369,11 @@ class Enemy(Tank):
             if wx == -1 and wx == -1 and d == -1:
                 continue
             else:
-                weight = WD * 1 / d
-                self.Add_CD_list(1 / d, wx, wy)
+                weight = WD * 1 / (d ** 2)
+                self.Add_CD_list(weight, wx, wy)
 
         # 各戦車の移動を計算
-        # self.dx, self.dy = GetSpeed(self.CD_list)
-        vx, vy = GetSpeed(self.CD_list)
-        self.GetSpeed2(vx, vy)
+        self.dx, self.dy = GetSpeed(self.CD_list)
 
         # 戦車との当たり判定
         if result[1][0] > 0 and self.dx > 0 or result[1][1] > 0 and self.dx < 0:
@@ -384,14 +413,12 @@ class Enemy(Tank):
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
                     self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
 
-        # 射撃口の描画
-        self.DrawGun()
 
     # 射撃の戦術アルゴリズム
     def ShotStrategy(self, target):
         cannon_num = len(self.CannonList)  # 現在保有する砲弾の数
         (x, y) = (0, 0)  # 射撃位置
-        dev_dis = 100  # 偏差距離
+        dev_dis = 50  # 偏差距離
 
         if cannon_num == 0 or cannon_num == 1:  # 相手の今いる位置に射撃
             x, y = self.GetDeviationPosition(target, dev_dis)
@@ -448,6 +475,12 @@ class Enemy(Tank):
         if self.JudgeAim(rad):
             return rad
 
+        # 反射で狙えるか判定
+        rad = self.ReflectionOuterWall()
+        # print(rad)
+        if rad is not None:
+            return rad
+
         """
         # 反射で狙えるか判定
         rad -= math.pi * 0.5
@@ -486,18 +519,18 @@ class Enemy(Tank):
             o_copy = o
 
             o.update()
-            if t % 10 == 0:  # 10回に一回確認
-                if not objects.has(o_copy):  # 消滅したとき
-                    # print(objects, objects_copy)
-                    # 何と衝突して消滅したかを調べる
-                    for a in objects_copy:
-                        if not a.alive():
-                            collided_object = a
+            if not objects.has(o_copy):  # 消滅したとき
+                # print(objects, objects_copy)
+                # 何と衝突して消滅したかを調べる
+                for a in objects_copy:
+                    if not a.alive():
+                        collided_object = a
 
-                    # 座標を記録
-                    (x, y) = (o_copy.x, o_copy.y)
+                # 座標を記録
+                (x, y) = (o_copy.x, o_copy.y)
 
-                    break
+                break
+
             t += 1
 
         # シミュレーション用worldを削除
@@ -517,6 +550,37 @@ class Enemy(Tank):
                     result = wall
 
             return [result, [x, y]]
+
+    # 外壁で反射できるかどうかの判定
+    def ReflectionOuterWall(self):
+
+        UpdateFalseImage()  # 虚像の位置を更新
+
+        # 虚像のplayerを取得
+        players = []
+        for o in false_image.sprites():
+            if type(o) is Player:
+                players.append(o)
+
+        # 外壁での反射で狙えるかの判定
+        for p in players:
+            flag = 1
+            for o in innerwalls.sprites():
+                # print(self.rect.center, p.rect.center)
+                points = o.DetectIntersection(self.rect.center, p.rect.center)  # 内壁の虚像の内，プレイヤーとプレイヤーの虚像を結んだ直線と交わるか判定
+                # print(points)
+
+                if len(points) > 0:  # 交わるとき
+                    flag = 0
+                    break
+
+            if flag:  # 外壁で反射した後、内壁の虚像に当たらないとき
+                rad = GetCannonAngle(p.rect.x, p.rect.y, self.x, self.y)
+                break
+            else:  # 外壁で反射した後，内壁に当たるとき
+                rad = None
+
+        return rad
 
     # 敵戦車弾除けベクトル(法線ベクトル)返還
     def CannonDodge(self, c):
@@ -563,22 +627,9 @@ class Enemy(Tank):
                 dx = int(math.copysign(self.v, wt_x))
             else:
                 dy = int(math.copysign(self.v, wt_y))
-            return dx, dy, GetDistance(self.x, self.y, w.x, w.y)
+            return dx, dy, GetDistance(self.x, self.y, w.x, w.y) / 45
         else:
             return -1, -1, -1
-
-    def GetSpeed2(self, vx, vy):
-        # 最終的な移動方向決定
-        # 単位円を考えたときにそのx，y方向を1とするか0とするか
-        if abs(vx) >= math.cos(3 * math.pi / 8):
-            self.dx = int(math.copysign(self.v, vx))
-        else:
-            self.dx = 0
-
-        if abs(vy) >= math.sin(math.pi / 8):
-            self.dy = int(math.copysign(self.v, vy))
-        else:
-            self.dy = 0
 
 
 # 砲弾
@@ -646,6 +697,19 @@ def GetSpeed(List):
     else:
         result[0] = 0
         result[1] = 0
+    
+    
+    # 最終的な移動方向決定
+    # 単位円を考えたときにそのx，y方向を1とするか0とするか
+    if abs(result[0]) >= math.cos(3 * math.pi / 8):
+        result[0] = int(math.copysign(1, result[0]))  # copysign(大きさ、符号)
+    else:
+        result[0] = 0
+
+    if abs(result[1]) >= math.sin(math.pi / 8):
+        result[1] = int(math.copysign(1, result[1]))
+    else:
+        result[1] = 0
     return result[0], result[1]
 
 
@@ -664,8 +728,35 @@ def GetVelocity(r, v):
     return math.sin(r) * math.sqrt(v), math.cos(r) * math.sqrt(v)
 
 
+# 線分の交点を求める
+def line_cross_point(P0, P1, Q0, Q1):
+    x0, y0 = P0
+    x1, y1 = P1
+    x2, y2 = Q0
+    x3, y3 = Q1
+    a0 = x1 - x0
+    b0 = y1 - y0
+    a2 = x3 - x2
+    b2 = y3 - y2
+
+    d = a0 * b2 - a2 * b0
+    if d == 0:
+        # two lines are parallel
+        return None
+
+    sn = b2 * (x2 - x0) - a2 * (y2 - y0)
+    s = sn / d
+    tn = b0 * (x2 - x0) - a0 * (y2 - y0)
+    t = tn / d
+
+    if 0 <= s <= 1 and 0 <= t <= 1:
+        return x0 + a0 * sn / d, y0 + b0 * sn / d
+    else:
+        return None
+
+
 # 残り敵数を返す関数
-def Aliving(enemies):
+def Aliving():
     enemy_alive = 0
     for e in enemies.sprites():
         if e.alive():
@@ -678,7 +769,10 @@ def MakeWalls(m):
     for i in range(m.row):
         for j in range(m.col):
             if m.map[i][j]:
-                Wall(m.images[1], j * m.m_size, i * m.m_size)
+                if 0 < i < m.row - 1 and 0 < j < m.col - 1:
+                    InnerWall(m.images[1], j * m.m_size, i * m.m_size)
+                else:
+                    OuterWall(m.images[1], j * m.m_size, i * m.m_size)
 
 
 # worldのコピー
@@ -694,8 +788,10 @@ def CopyWorld():
             Player.containers = all_object, player
         elif type(o) is Enemy:
             new_object = Enemy("tank_1.png", o.x, o.y, o.v, o.dx, o.dy, o.firetime)
-        elif type(o) is Wall:
-            new_object = Wall(o.image, o.x, o.y)
+        elif type(o) is InnerWall:
+            new_object = InnerWall(o.image, o.x, o.y)
+        elif type(o) is OuterWall:
+            new_object = OuterWall(o.image, o.x, o.y)
         else:
             new_object = Cannon("cannon.png", o.x, o.y, o.v, o.dx, o.dy)
 
@@ -711,6 +807,71 @@ def DrawTiles(m):
     for i in range(m.row):
         for j in range(m.col):
             screen.blit(m.images[0], (j * m.m_size, i * m.m_size))
+
+
+# 虚像オブジェクトの配置
+def MakeFalseImage():
+    borders = [40, w - 40, 40, h - 40]  # 左，右，上，下の境界
+
+    for o in all_object.sprites():
+        if not type(o) is OuterWall:
+            for i in range(len(borders)):
+                (x, y) = o.x, o.y
+
+                if i == 0 or i == 1:  # x方向の対称移動
+                    x = 2 * borders[i] - o.rect.centerx - o.rect.width * 0.5
+                else:  # y方向の対称移動
+                    y = 2 * borders[i] - o.rect.centery - o.rect.height * 0.5
+
+                # オブジェクトごとに虚像を作成
+                if type(o) is Player:
+                    Player.containers = all_object
+                    new_object = Player("tank_0.png", x, y, o.v)
+                    Player.containers = all_object, player
+                    new_object.kill()
+                elif type(o) is Enemy:
+                    new_object = Enemy("tank_1.png", x, y, o.v, o.dx, o.dy, o.firetime)
+                    new_object.kill()
+                else:
+                    new_object = InnerWall(o.image, x, y)
+                    all_object.remove(new_object)
+
+                # グループを整理
+                false_image.add(new_object)
+
+
+# 虚像オブジェクトの更新
+def UpdateFalseImage():
+    player_tanks = []
+    enemy_tanks = []
+
+    # 戦車の虚像を取得
+    for o in false_image:
+        if type(o) is Player:
+            player_tanks.append(o)
+        if type(o) is Enemy:
+            enemy_tanks.append(o)
+
+    # 位置を更新
+    borders = [40, w - 40, 40, h - 40]  # 左，右，上，下の境界
+
+    for i in range(len(borders)):  # プレイヤー
+        if i == 0 or i == 1:  # x方向の対称移動
+            player_tanks[i].rect.x = 2 * borders[i] - player.sprite.rect.centerx - player_tanks[1].rect.width * 0.5
+            player_tanks[i].rect.y = player.sprite.rect.y
+        else:  # y方向の対称移動
+            player_tanks[i].rect.x = player.sprite.rect.x
+            player_tanks[i].rect.y = 2 * borders[i] - player.sprite.rect.centery - player_tanks[1].rect.height * 0.5
+
+    enemy_list = enemies.sprites()
+    for e in range(len(enemy_list)):
+        for i in range(len(borders)):  # 敵
+            if i == 0 or i == 1:  # x方向の対称移動
+                enemy_tanks[e * 4 + i].rect.x = 2 * borders[i] - enemy_list[e].rect.centerx - enemy_tanks[i].rect.width * 0.5
+                enemy_tanks[e * 4 + i].rect.y = enemy_list[e].rect.y
+            else:  # y方向の対称移動
+                enemy_tanks[e * 4 + i].rect.x = enemy_list[e].rect.x
+                enemy_tanks[e * 4 + i].rect.y = 2 * borders[i] - enemy_list[e].rect.centery - enemy_tanks[1].rect.height * 0.5
 
 
 # pygameの準備
@@ -729,13 +890,18 @@ player = pygame.sprite.GroupSingle(None)
 enemies = pygame.sprite.Group()
 cannons = pygame.sprite.Group()
 walls = pygame.sprite.Group()
+innerwalls = pygame.sprite.Group()
+outerwalls = pygame.sprite.Group()
 all_object = pygame.sprite.RenderUpdates()
+false_image = pygame.sprite.Group()
 
 # グループ分け
 Player.containers = all_object, player
 Enemy.containers = all_object, enemies
 Cannon.containers = all_object, cannons
 Wall.containers = all_object, walls
+InnerWall.containers = all_object, walls, innerwalls
+OuterWall.containers = all_object, walls, outerwalls
 
 
 def main():
@@ -755,6 +921,7 @@ def main():
     Map.images[1] = load_img("wall.png")  # 壁
     m = Map()
     MakeWalls(m)  # 壁を生成
+    MakeFalseImage()  # 虚像オブジェクトの生成
 
     # 敵戦車のウェイトを表示
     print('Weight of Allies Distance:')
@@ -776,6 +943,7 @@ def main():
             DrawTiles(m)  # 背景として床を描画
             all_object.draw(screen)  # すべて描写
             all_object.update()  # すべて更新
+            # false_image.draw(screen)
             # print(player, enemies, cannons, walls)
 
         # プレイヤーがいなくなったとき

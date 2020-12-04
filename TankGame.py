@@ -588,9 +588,22 @@ class Enemy(Tank):
         return rad
 
     # 壁で反射できるかどうかの判定（内壁・外壁）
-    def ReflectionWall(self):
+    def ReflectionWall(self, x, y):
         # 自分からn方向への直線を得る（始点と終点で定義）（終点は始点からw×2先の点）
+        line_list = []  # 直線のリスト
+        rad = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)  # 自分とプレイヤーとの角度
+        rad -= math.pi * 0.5
+        parts = 36
+        l = max(w, h)  # 画面の縦と横の内大きい方
+        for r in [rad + math.pi * x / parts for x in range(1, parts)]:
+            start_x, start_y = self.GetShotPoint(rad)
+            end_x = start_x + 2 * l * math.cos(r)
+            end_y = start_y + 2 * l * math.sin(r)
+
+            line_list.append([start_x, start_y, end_x, end_y])  # リストに追加
+
         # 壁を自分から近い順に並び替え
+
         # それぞれの壁について
         ## n方向の直線と交わるか判定
         ## 交われば直線を反転させる（交点を始点,終点は対称移動で得る）

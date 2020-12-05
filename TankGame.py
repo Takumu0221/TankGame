@@ -600,14 +600,30 @@ class Enemy(Tank):
             end_x = start_x + 2 * l * math.cos(r)
             end_y = start_y + 2 * l * math.sin(r)
 
-            line_list.append([start_x, start_y, end_x, end_y])  # リストに追加
+            line_list.append([(start_x, start_y), (end_x, end_y)])  # リストに追加
 
         # 壁を自分から近い順に並び替え
+        objects = []
+        distances = []
+
+        for o in all_object.sprites():
+            if walls.has(o) or enemies.has(o):
+                objects.append(o)  # enemyとwallを追加
+                distances.append(GetDistance(self.rect.centerx, self.rect.centery, o.rect.centerx, o.rect.centery))
+
+        distances_sorted = sorted(distances)  # プレイヤーとの距離で昇順に並び替え
+        objects_index = [distances.index(x) for x in distances_sorted]  # indexのリストを作成
 
         # それぞれの壁について
-        ## n方向の直線と交わるか判定
-        ## 交われば直線を反転させる（交点を始点,終点は対称移動で得る）
-        ## すべての直線を一度反転させたら終了
+        reflected_line_list = []  # 1回反射させた直線のリスト
+        for o in [objects[i] for i in objects_index]:
+            # n方向の直線と交わるか判定
+            for line in line_list:
+                # 交われば直線を反転させる（交点を始点,終点は対称移動で得る）
+                points = o.DetectIntersection(line[0], line[1])
+
+            # すべての直線を一度反転させたら終了
+
         # 反転させた直線について,プレイヤーと交わる物を得る
         # その中からエネミーに交わる物を除外
         rad = 0

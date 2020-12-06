@@ -17,21 +17,21 @@ ED = 1  # 敵との距離の重視度合い(EnemyDistance)
 WD = 2  # 壁との距離の重視度合い(WallsDistance)
 AC = 4  # 弾丸回避の重要度合い(AvoidingCannon)
 # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
-GD = 240
+GD = 260
 
 
 # マップ
 class Map:
     # マップデータ
     map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1],
+           [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
@@ -61,12 +61,12 @@ class Object(pygame.sprite.Sprite):
     def DetectIntersection(self, P0, P1):
         corners = [self.rect.topleft, self.rect.topright, self.rect.bottomright, self.rect.bottomleft]
 
-        points = []
+        points = [0, 0, 0, 0]
         for i in range(len(corners)):
             p = line_cross_point(corners[i], corners[(i + 1) % 4], P0, P1)  # 引数で指定された線分と壁の端との交点を求める
 
             if p is not None:  # 交わるとき，交点を追加
-                points.append(p)
+                points[i] = p
 
         return points  # 交点のリストを返す
 
@@ -190,9 +190,9 @@ class Tank(MovingObject):
         self.radius = GetDistance(self.x, self.y, self.x + 0.5 * (self.rect.width + self.CannonW),
                                   self.y + 0.5 * (self.rect.height + self.CannonH))
         self.GunDirection = 0  # 射撃口の向き
-        self.shot_x = self.x + 0.5 * (self.rect.width - self.CannonW) - self.radius * math.sin(
+        self.shot_x = self.x + 0.5 * (self.rect.width - self.CannonW) - self.radius * math.cos(
             math.pi * 0.5)  # 射撃位置のx座標
-        self.shot_y = self.y + 0.5 * (self.rect.height - self.CannonH) - self.radius * math.cos(
+        self.shot_y = self.y + 0.5 * (self.rect.height - self.CannonH) - self.radius * math.sin(
             math.pi * 0.5)  # 射撃位置のy座標
 
         self.log = []  # 位置のログ
@@ -223,8 +223,8 @@ class Tank(MovingObject):
 
     # 射撃ポイントを求める
     def GetShotPoint(self, rad):
-        x = self.x + 0.5 * (self.rect.width - self.CannonW) + self.radius * math.sin(rad)
-        y = self.y + 0.5 * (self.rect.height - self.CannonH) + self.radius * math.cos(rad)
+        x = self.x + 0.5 * (self.rect.width - self.CannonW) + self.radius * math.cos(rad)
+        y = self.y + 0.5 * (self.rect.height - self.CannonH) + self.radius * math.sin(rad)
 
         return x, y
 
@@ -472,17 +472,22 @@ class Enemy(Tank):
 
     # どの方向に射撃するかを決定する
     def GetShotAngle(self, x, y):
+
+        """
         # 直接狙えるか判定
         rad = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)
 
         if self.JudgeAim(rad):
             return rad
+        """
 
+        """
         # 反射で狙えるか判定
         rad = self.ReflectionOuterWall()
         # print(rad)
         if rad is not None:
             return rad
+        """
 
         """
         # 反射で狙えるか判定
@@ -492,6 +497,11 @@ class Enemy(Tank):
             if self.JudgeAim(rad):
                 return rad
         """
+
+        # 反射で狙えるか判定
+        rad = self.ReflectionWall(x, y)
+        if rad is not None:
+            return rad
 
         return 0
 
@@ -567,6 +577,7 @@ class Enemy(Tank):
 
         # 外壁での反射で狙えるかの判定
         enemy_tanks = enemies.sprites() + [x for x in false_image if type(x) is Enemy]
+        rad = None
         # print(enemy_tanks)
         for p in players:
             flag = 1
@@ -575,7 +586,7 @@ class Enemy(Tank):
                 points = o.DetectIntersection(self.rect.center, p.rect.center)  # 内壁の虚像の内，プレイヤーとプレイヤーの虚像を結んだ直線と交わるか判定
                 # print(points)
 
-                if len(points) > 0:  # 交わるとき
+                if points != [0, 0, 0, 0]:  # 交わるとき
                     flag = 0
                     break
 
@@ -591,43 +602,86 @@ class Enemy(Tank):
     def ReflectionWall(self, x, y):
         # 自分からn方向への直線を得る（始点と終点で定義）（終点は始点からw×2先の点）
         line_list = []  # 直線のリスト
-        rad = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)  # 自分とプレイヤーとの角度
-        rad -= math.pi * 0.5
+        rad_player = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)  # 自分とプレイヤーとの角度
+        rad_player -= math.pi * 0.5
         parts = 36
-        l = max(w, h)  # 画面の縦と横の内大きい方
-        for r in [rad + math.pi * x / parts for x in range(1, parts)]:
-            start_x, start_y = self.GetShotPoint(rad)
-            end_x = start_x + 2 * l * math.cos(r)
-            end_y = start_y + 2 * l * math.sin(r)
+        length = max(w, h)  # 画面の縦と横の内大きい方
+        for r in [rad_player + math.pi * x / parts for x in range(1, parts)]:
+            start_x, start_y = self.GetShotPoint(r)
+            end_x = start_x + 2 * length * math.cos(r)
+            end_y = start_y + 2 * length * math.sin(r)
 
-            line_list.append([(start_x, start_y), (end_x, end_y)])  # リストに追加
+            line_list.append([[start_x, start_y], [end_x, end_y]])  # リストに追加
 
         # 壁を自分から近い順に並び替え
-        objects = []
-        distances = []
+        objects = {}
 
         for o in all_object.sprites():
-            if walls.has(o) or enemies.has(o):
-                objects.append(o)  # enemyとwallを追加
-                distances.append(GetDistance(self.rect.centerx, self.rect.centery, o.rect.centerx, o.rect.centery))
+            if o is not self:
+                if walls.has(o) or enemies.has(o):
+                    objects.setdefault(o, GetDistance(self.rect.centerx, self.rect.centery, o.rect.centerx,
+                                                      o.rect.centery))  # enemyとwallを追加
 
-        distances_sorted = sorted(distances)  # プレイヤーとの距離で昇順に並び替え
-        objects_index = [distances.index(x) for x in distances_sorted]  # indexのリストを作成
+        objects_sorted = sorted(objects.items(), key=lambda a: a[1])  # プレイヤーとの距離で昇順に並び替え
 
         # それぞれの壁について
+        L = 1000  # 十分大きい数
         reflected_line_list = []  # 1回反射させた直線のリスト
-        for o in [objects[i] for i in objects_index]:
+        for o in [i[0] for i in objects_sorted]:
             # n方向の直線と交わるか判定
             for line in line_list:
                 # 交われば直線を反転させる（交点を始点,終点は対称移動で得る）
                 points = o.DetectIntersection(line[0], line[1])
+                if points != [0, 0, 0, 0]:  # 交点が存在する
+                    if walls.has(o):  # 交点の存在するオブジェクトが壁の時
+                        points_dis = [GetDistance(self.rect.centerx, self.rect.centery, x[0], x[1])
+                                      if x != 0 else L for x in points]  # 交点と自分との距離を求める
+                        points_dis_sorted = sorted(points_dis)  # 昇順に並び替え
+
+                        # 最も近い交点で反射
+                        p_i = points_dis.index(points_dis_sorted[0])  # 最も近い交点のインデックス
+                        reflect_point = points[p_i]
+                        # pygame.draw.rect(screen, [0, 0, 0], Rect(reflect_point[0], reflect_point[1], 10, 10), 0)
+                        if p_i == 1 or p_i == 3:  # 壁の左右のどちらかで反射する場合
+                            reflected_line = [reflect_point, GetLineSymmetricPoint(line[1], reflect_point[0], None)]
+                        else:  # 壁の上下で反射する場合
+                            reflected_line = [reflect_point, GetLineSymmetricPoint(line[1], None, reflect_point[1])]
+
+                        line_list.remove(line)  # 反射前の直線のリストから削除
+                        reflected_line_list.append(reflected_line)  # リストに追加
+
+                    else:  # 交点の存在するオブジェクトが敵の時
+                        line_list.remove(line)  # 反射前の直線のリストから削除
 
             # すべての直線を一度反転させたら終了
+            if len(reflected_line_list) == 0:
+                break
 
         # 反転させた直線について,プレイヤーと交わる物を得る
-        # その中からエネミーに交わる物を除外
-        rad = 0
-        return rad
+        Shot_line_list = []
+        for line in reflected_line_list:
+            points = player.sprite.DetectIntersection(line[0], line[1])  # プレイヤーとの交点を求める
+            if points != [0, 0, 0, 0]:  # 交点が存在するとき
+                player_dis = GetDistance(player.sprite.rect.centerx, player.sprite.rect.centery,
+                                         line[0][0], line[0][1])  # プレイヤーと反射点の距離
+                # その中からエネミーや壁に交わる物を除外
+                flag = 1
+                for o in [x for x in all_object.sprites() if innerwalls.has(x) or enemies.has(x)]:
+                    # 交点が存在し，反射点との距離がプレイヤーとのよりも短い場合
+                    if o.DetectIntersection(line[0], line[1]) != [0, 0, 0, 0] \
+                            and player_dis > GetDistance(o.rect.centerx, o.rect.centery, line[0][0], line[0][1]):
+                        flag = 0
+                if flag:
+                    Shot_line_list.append(line)  # リストに追加
+                    # print(line)
+
+        # 角度を返す
+        print(Shot_line_list)
+        if len(Shot_line_list) > 0:  # リストが空でないとき
+            return GetCannonAngle(Shot_line_list[0][0][0], Shot_line_list[0][0][1], self.rect.centerx,
+                                  self.rect.centery)
+        else:  # リストが空の時
+            return None
 
     # 敵戦車弾除けベクトル(法線ベクトル)返還
     def CannonDodge(self, c):
@@ -762,7 +816,7 @@ def GetSpeed(List):
 
 # 砲弾の角度を得る（1：対象物　2：発射点）
 def GetCannonAngle(x1, y1, x2, y2):
-    return math.atan2(x1 - x2, y1 - y2)
+    return math.atan2(y1 - y2, x1 - x2)
 
 
 # 2点間の距離を求める
@@ -772,7 +826,7 @@ def GetDistance(x1, y1, x2, y2):
 
 # 角度から縦・横方向成分を求める
 def GetVelocity(r, v):
-    return math.sin(r) * math.sqrt(v), math.cos(r) * math.sqrt(v)
+    return math.cos(r) * math.sqrt(v), math.sin(r) * math.sqrt(v)
 
 
 # 線分の交点を求める
@@ -797,9 +851,17 @@ def line_cross_point(P0, P1, Q0, Q1):
     t = tn / d
 
     if 0 <= s <= 1 and 0 <= t <= 1:
-        return x0 + a0 * sn / d, y0 + b0 * sn / d
+        return [x0 + a0 * sn / d, y0 + b0 * sn / d]
     else:
         return None
+
+
+# ある軸において対称な点を返す
+def GetLineSymmetricPoint(P, axis_x, axis_y):
+    if axis_x is not None:  # x軸
+        return [2 * axis_x - P[0], P[1]]
+    elif axis_y is not None:  # y軸
+        return [P[0], 2 * axis_y - P[1]]
 
 
 # 残り敵数を返す関数
@@ -961,7 +1023,7 @@ def main():
     global y_target, x_target
     Player("tank_0.png", w / 4, h / 2, 1)
 
-    enemy_num = 2
+    enemy_num = 1
     for i in range(1, enemy_num + 1):
         Enemy("tank_1.png", w * 3 / 4, h * i / (enemy_num + 1), 1, 0, 0, time.time())
 

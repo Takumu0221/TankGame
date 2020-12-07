@@ -24,16 +24,16 @@ GD = 260
 class Map:
     # マップデータ
     map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-           [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1],
-           [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1],
+           [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
     row, col = len(map), len(map[0])  # マップの行数,列数を取得
     images = [None] * 256  # マップチップ
@@ -165,6 +165,7 @@ class MovingObject(Object):
                     if difference[1] <= -threshold[1]:  # 北方向の壁
                         self.y = object_collied.y + object_collied.rect.height  # 位置補正
                         result[2][3] = 1
+                    break
 
         return result
 
@@ -473,20 +474,19 @@ class Enemy(Tank):
     # どの方向に射撃するかを決定する
     def GetShotAngle(self, x, y):
 
-        """
         # 直接狙えるか判定
         rad = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)
 
         if self.JudgeAim(rad):
             return rad
-        """
 
         """
-        # 反射で狙えるか判定
+                # 反射で狙えるか判定
         rad = self.ReflectionOuterWall()
         # print(rad)
         if rad is not None:
             return rad
+
         """
 
         """
@@ -497,7 +497,6 @@ class Enemy(Tank):
             if self.JudgeAim(rad):
                 return rad
         """
-
         # 反射で狙えるか判定
         rad = self.ReflectionWall(x, y)
         if rad is not None:
@@ -606,8 +605,8 @@ class Enemy(Tank):
         rad_player -= math.pi * 0.5
         parts = 36
         length = max(w, h)  # 画面の縦と横の内大きい方
+        start_x, start_y = self.rect.center
         for r in [rad_player + math.pi * x / parts for x in range(1, parts)]:
-            start_x, start_y = self.GetShotPoint(r)
             end_x = start_x + 2 * length * math.cos(r)
             end_y = start_y + 2 * length * math.sin(r)
 
@@ -615,7 +614,6 @@ class Enemy(Tank):
 
         # 壁を自分から近い順に並び替え
         objects = {}
-
         for o in all_object.sprites():
             if o is not self:
                 if walls.has(o) or enemies.has(o):
@@ -629,7 +627,9 @@ class Enemy(Tank):
         reflected_line_list = []  # 1回反射させた直線のリスト
         for o in [i[0] for i in objects_sorted]:
             # n方向の直線と交わるか判定
-            for line in line_list:
+            i = 0
+            while i < len(line_list):
+                line = line_list[i]
                 # 交われば直線を反転させる（交点を始点,終点は対称移動で得る）
                 points = o.DetectIntersection(line[0], line[1])
                 if points != [0, 0, 0, 0]:  # 交点が存在する
@@ -641,7 +641,6 @@ class Enemy(Tank):
                         # 最も近い交点で反射
                         p_i = points_dis.index(points_dis_sorted[0])  # 最も近い交点のインデックス
                         reflect_point = points[p_i]
-                        # pygame.draw.rect(screen, [0, 0, 0], Rect(reflect_point[0], reflect_point[1], 10, 10), 0)
                         if p_i == 1 or p_i == 3:  # 壁の左右のどちらかで反射する場合
                             reflected_line = [reflect_point, GetLineSymmetricPoint(line[1], reflect_point[0], None)]
                         else:  # 壁の上下で反射する場合
@@ -653,8 +652,11 @@ class Enemy(Tank):
                     else:  # 交点の存在するオブジェクトが敵の時
                         line_list.remove(line)  # 反射前の直線のリストから削除
 
+                else:  # 交点が存在しない場合
+                    i += 1
+
             # すべての直線を一度反転させたら終了
-            if len(reflected_line_list) == 0:
+            if len(line_list) == 0:
                 break
 
         # 反転させた直線について,プレイヤーと交わる物を得る
@@ -676,7 +678,6 @@ class Enemy(Tank):
                     # print(line)
 
         # 角度を返す
-        print(Shot_line_list)
         if len(Shot_line_list) > 0:  # リストが空でないとき
             return GetCannonAngle(Shot_line_list[0][0][0], Shot_line_list[0][0][1], self.rect.centerx,
                                   self.rect.centery)

@@ -472,37 +472,34 @@ class Enemy(Tank):
         if cannon_num == 0:  # 相手の今いる位置に射撃
             if dis <= GD + 40:
                 x, y = self.GetDeviationPosition(target, dev_dis)
-                print("S0",x,y)
                 self.burst = 1
 
         elif cannon_num == 1:  # 偏差射撃（1.5倍）
             if self.burst:
                 x, y = self.GetDeviationPosition(target, dev_dis * 1.5)
-                print("S1",x,y)
                 # x = player.sprite.rect.centerx * 2 - x
                 # y = player.sprite.rect.centery * 2 - y
             else:
-                if dis <= GD * 0.8:
+                if dis <= GD_origin * 0.8:
                     (x, y) = player.sprite.rect.center
-                return 0
 
         elif cannon_num == 2:  # 偏差射撃
             if self.burst:
                 (x, y) = player.sprite.rect.center
                 self.burst = 0
             else:
-                if dis <= GD * 0.6:
+                if dis <= GD_origin * 0.7:
                     (x, y) = player.sprite.rect.center
-                return 0
 
         elif 3 <= cannon_num:  # 残りの砲弾
-            if dis < GD * 0.4:  # プレイヤーとの距離が近い場合
+            if dis < GD_origin * 0.6:  # プレイヤーとの距離が近い場合
                 (x, y) = player.sprite.rect.center  # 相手の今いる位置に射撃
             else:
                 return 0
 
+        if x == 0 and y == 0:
+            return 0
         rad = self.GetShotAngle(x, y)
-
         return rad
 
     # 偏差位置を求める
@@ -525,7 +522,6 @@ class Enemy(Tank):
     def GetShotAngle(self, x, y):
         # 直接狙えるか判定
         rad = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)
-        print("Angle",rad)
 
         if self.JudgeAim(rad):
             return rad

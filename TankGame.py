@@ -13,9 +13,9 @@ import random
 
 # 敵戦車移動に関するウェイト(0→移動に影響しない)
 AD = 0  # 味方との距離の重視度合い(AiiesDistance)
-ED = 1  # 敵との距離の重視度合い(EnemyDistance)
-WD = 2  # 壁との距離の重視度合い(WallsDistance)
-AC = 4  # 弾丸回避の重要度合い(AvoidingCannon)
+ED = 2  # 敵との距離の重視度合い(EnemyDistance)
+WD = 3  # 壁との距離の重視度合い(WallsDistance)
+AC = 5  # 弾丸回避の重要度合い(AvoidingCannon)
 # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
 GD = 260
 
@@ -26,14 +26,14 @@ class Map:
     map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1],
            [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1],
-           [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
     row, col = len(map), len(map[0])  # マップの行数,列数を取得
     images = [None] * 256  # マップチップ
@@ -71,8 +71,9 @@ class Object(pygame.sprite.Sprite):
         return points  # 交点のリストを返す
 
 
+
 # 壁オブジェクト
-class Wall(Object):
+class Wall(pygame.sprite.Sprite):
     # 初期化
     def __init__(self, filename, x, y):
         super().__init__(filename, x, y)
@@ -322,6 +323,8 @@ class Enemy(Tank):
         change = distance - GD
         if change > 0:
             return 1
+        elif change == 0:
+            return 0
         else:
             return -1
 
@@ -353,7 +356,6 @@ class Enemy(Tank):
         # 移動先を決定する行列に追加
         self.Add_CD_list(weight, dx, dy)
 
-        # まっつん追加スペース
         # 弾避けベクトルを求める
         for c in cannons:
             nx, ny, d = self.CannonDodge(c)
@@ -369,13 +371,11 @@ class Enemy(Tank):
             if wx == -1 and wx == -1 and d == -1:
                 continue
             else:
-                weight = WD * 1 / d
-                self.Add_CD_list(1 / d, wx, wy)
+                weight = WD * 1 / (d ** 2)
+                self.Add_CD_list(weight, wx, wy)
 
         # 各戦車の移動を計算
-        # self.dx, self.dy = GetSpeed(self.CD_list)
-        vx, vy = GetSpeed(self.CD_list)
-        self.GetSpeed2(vx, vy)
+        self.dx, self.dy = GetSpeed(self.CD_list)
 
         # 戦車との当たり判定
         if result[1][0] > 0 and self.dx > 0 or result[1][1] > 0 and self.dx < 0:
@@ -473,7 +473,6 @@ class Enemy(Tank):
 
     # どの方向に射撃するかを決定する
     def GetShotAngle(self, x, y):
-
         # 直接狙えるか判定
         rad = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)
 
@@ -729,22 +728,9 @@ class Enemy(Tank):
                 dx = int(math.copysign(self.v, wt_x))
             else:
                 dy = int(math.copysign(self.v, wt_y))
-            return dx, dy, GetDistance(self.x, self.y, w.x, w.y)
+            return dx, dy, GetDistance(self.x, self.y, w.x, w.y) / 45
         else:
             return -1, -1, -1
-
-    def GetSpeed2(self, vx, vy):
-        # 最終的な移動方向決定
-        # 単位円を考えたときにそのx，y方向を1とするか0とするか
-        if abs(vx) >= math.cos(3 * math.pi / 8):
-            self.dx = int(math.copysign(self.v, vx))
-        else:
-            self.dx = 0
-
-        if abs(vy) >= math.sin(math.pi / 8):
-            self.dy = int(math.copysign(self.v, vy))
-        else:
-            self.dy = 0
 
 
 # 砲弾
@@ -811,6 +797,19 @@ def GetSpeed(List):
         result[1] = result[1] / dev  # 正規化
     else:
         result[0] = 0
+        result[1] = 0
+
+
+    # 最終的な移動方向決定
+    # 単位円を考えたときにそのx，y方向を1とするか0とするか
+    if abs(result[0]) >= math.cos(3 * math.pi / 8):
+        result[0] = int(math.copysign(1, result[0]))  # copysign(大きさ、符号)
+    else:
+        result[0] = 0
+
+    if abs(result[1]) >= math.sin(math.pi / 8):
+        result[1] = int(math.copysign(1, result[1]))
+    else:
         result[1] = 0
     return result[0], result[1]
 
@@ -1002,18 +1001,13 @@ player = pygame.sprite.GroupSingle(None)
 enemies = pygame.sprite.Group()
 cannons = pygame.sprite.Group()
 walls = pygame.sprite.Group()
-innerwalls = pygame.sprite.Group()
-outerwalls = pygame.sprite.Group()
 all_object = pygame.sprite.RenderUpdates()
-false_image = pygame.sprite.Group()
 
 # グループ分け
 Player.containers = all_object, player
 Enemy.containers = all_object, enemies
 Cannon.containers = all_object, cannons
 Wall.containers = all_object, walls
-InnerWall.containers = all_object, walls, innerwalls
-OuterWall.containers = all_object, walls, outerwalls
 
 
 def main():

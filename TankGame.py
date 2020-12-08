@@ -10,21 +10,23 @@ import random
 
 (x_target, y_target) = (0, 0)  # 目標位置
 
-Enemy_num = 3   # 敵戦車の数
-Enemy_pos = [0]*(2*Enemy_num)  # 各敵戦車の位置を記録するリスト
+Enemy_num = 3  # 敵戦車の数
+Enemy_pos = [0] * (2 * Enemy_num)  # 各敵戦車の位置を記録するリスト
+
 
 # 敵戦車の位置を記録するリストの初期化(死んだ戦車の管理のため)
 def Enemy_pos_res():
     global Enemy_pos
     for i in range(Enemy_num):  # 初期化
-        Enemy_pos[2*i] = 0
-        Enemy_pos[2*i+1] = 0
+        Enemy_pos[2 * i] = 0
+        Enemy_pos[2 * i + 1] = 0
+
 
 # 敵戦車移動に関するウェイト(0→移動に影響しない)
-AD = 0  # 味方との距離の重視度合い(AiiesDistance)
-ED = 2  # 敵との距離の重視度合い(EnemyDistance)
-WD = 3  # 壁との距離の重視度合い(WallsDistance)
-AC = 5  # 弾丸回避の重要度合い(AvoidingCannon)
+AD = 4  # 味方との距離の重視度合い(AiiesDistance)
+ED = 5  # 敵との距離の重視度合い(EnemyDistance)
+WD = 6  # 壁との距離の重視度合い(WallsDistance)
+AC = 7  # 弾丸回避の重要度合い(AvoidingCannon)
 # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
 GD = 305
 GD_origin = GD
@@ -88,7 +90,7 @@ class Object(pygame.sprite.Sprite):
 
 
 # 壁オブジェクト
-class Wall(pygame.sprite.Sprite):
+class Wall(Object):
     # 初期化
     def __init__(self, filename, x, y):
         super().__init__(filename, x, y)
@@ -99,16 +101,16 @@ class Wall(pygame.sprite.Sprite):
 
 class InnerWall(Wall):
     # 初期化
-    def __init__(self, img, x, y):
-        super().__init__(img, x, y)
+    def __init__(self, filename, x, y):
+        super().__init__(filename, x, y)
 
 
 class OuterWall(Wall):
     corners = [[40, 40], [w - 40, 40], [40, h - 40], [w - 40, h - 40]]  # 四隅の座標（左上，右上，左下，右下）
 
     # 初期化
-    def __init__(self, img, x, y):
-        super().__init__(img, x, y)
+    def __init__(self, filename, x, y):
+        super().__init__(filename, x, y)
 
 
 # 移動オブジェクト
@@ -321,7 +323,7 @@ class Enemy(Tank):
         self.burst = 0  # 3点バーストにするための変数
 
     def update(self):
-        if all_object.has(player):
+        if all_object.has(player.sprite):
             self.Move()  # 戦車の移動
 
             # 砲弾の発射
@@ -334,7 +336,7 @@ class Enemy(Tank):
             self.rect.y = self.y
             # 座標の記録
             self.log.insert(0, [self.x, self.y])
-            
+
         # 射撃口の描画
         self.DrawGun()
 
@@ -343,20 +345,20 @@ class Enemy(Tank):
         for i in range(Enemy_num):
             if not self.num == i:
                 # 既に爆破されている戦車は考慮しない(死戦車はx座標の数値のみ0)
-                if not Enemy_pos[2*i] == 0:
-                    angle = GetCannonAngle(Enemy_pos[2*i],Enemy_pos[2*i+1],self.x,self.y)
+                if not Enemy_pos[2 * i] == 0:
+                    angle = GetCannonAngle(Enemy_pos[2 * i], Enemy_pos[2 * i + 1], self.x, self.y)
                     dx, dy = GetVelocity(angle, self.v)
                     # 方向ベクトルを正規化
                     dev = math.sqrt(dx ** 2 + dy ** 2)
                     dx = dx / dev
                     dy = dy / dev
                     # 斥力が働くか否かを判定(斥力が働く範囲に入っているか)
-                    distance = GetDistance(Enemy_pos[2*i],Enemy_pos[(2*i)+1],self.x,self.y)
+                    distance = GetDistance(Enemy_pos[2 * i], Enemy_pos[(2 * i) + 1], self.x, self.y)
                     change = distance - RFD
                     if change < 0:
-                        weight = (-1)*AD
-                        #発生する斥力をリストに追加
-                        self.CD_list.append([weight,dx,dy])
+                        weight = (-1) * AD
+                        # 発生する斥力をリストに追加
+                        self.CD_list.append([weight, dx, dy])
 
     ###################### プレイヤーとの距離感に対するバネの力の方向 ##################
     def Sense_of_Distance(self):
@@ -402,7 +404,7 @@ class Enemy(Tank):
         self.RepilsiveForce()
 
         # 弾避けベクトルを求める
-        for c in cannons:
+        for c in cannons.sprites():
             nx, ny, d = self.CannonDodge(c)
             if nx == -1 and ny == -1 and d == -1:
                 continue
@@ -440,9 +442,9 @@ class Enemy(Tank):
         self.x += self.dx
         self.y += self.dy
         # 敵戦車の位置を記録するリストを更新
-        Enemy_pos[2*self.num] = self.x
-        Enemy_pos[2*self.num+1] = self.y
-        #print(Enemy_pos)
+        Enemy_pos[2 * self.num] = self.x
+        Enemy_pos[2 * self.num + 1] = self.y
+        # print(Enemy_pos)
         self.serch = Rect(self.x - 1.5 * self.rect.width, self.y - 1.5 * self.rect.height, 4 * self.rect.width,
                           4 * self.rect.height)
 
@@ -464,19 +466,18 @@ class Enemy(Tank):
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
                     self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
 
-
     # 射撃の戦術アルゴリズム
     def ShotStrategy(self, target):
         cannon_num = len(self.CannonList)  # 現在保有する砲弾の数
         (x, y) = (0, 0)  # 射撃位置
         dev_dis = 50  # 偏差距離
 
-        dis = GetDistance(self.x, self.y, player.sprite.x, player.sprite.y) # プレイヤーとの距離を測定
+        dis = GetDistance(self.x, self.y, player.sprite.x, player.sprite.y)  # プレイヤーとの距離を測定
 
         if cannon_num == 0:  # 相手の今いる位置に射撃
             if dis <= GD + 40:
                 x, y = self.GetDeviationPosition(target, dev_dis)
-                print("S0",x,y)
+                print("S0", x, y)
                 self.burst = 1
 
         elif cannon_num == 1:  # 偏差射撃（1.5倍）
@@ -487,25 +488,24 @@ class Enemy(Tank):
             else:
                 if dis <= GD * 0.8:
                     (x, y) = player.sprite.rect.center
-                return 0
 
         elif cannon_num == 2:  # 偏差射撃
             if self.burst:
                 (x, y) = player.sprite.rect.center
                 self.burst = 0
             else:
-                if dis <= GD * 0.6:
+                if dis <= GD_origin * 0.7:
                     (x, y) = player.sprite.rect.center
-                return 0
 
         elif 3 <= cannon_num:  # 残りの砲弾
-            if dis < GD * 0.4:  # プレイヤーとの距離が近い場合
+            if dis < GD_origin * 0.6:  # プレイヤーとの距離が近い場合
                 (x, y) = player.sprite.rect.center  # 相手の今いる位置に射撃
             else:
                 return 0
 
+        if x == 0 and y == 0:
+            return 0
         rad = self.GetShotAngle(x, y)
-
         return rad
 
     # 偏差位置を求める
@@ -852,7 +852,6 @@ def GetSpeed(List):
         result[0] = 0
         result[1] = 0
 
-
     # 最終的な移動方向決定
     # 単位円を考えたときにそのx，y方向を1とするか0とするか
     if abs(result[0]) >= math.cos(3 * math.pi / 8):
@@ -949,7 +948,7 @@ def CopyWorld():
             new_object = Player("tank_0.png", o.x, o.y, o.v)
             Player.containers = all_object, player
         elif type(o) is Enemy:
-            new_object = Enemy("tank_1.png", o.x, o.y, o.v, o.dx, o.dy, o.firetime,0)
+            new_object = Enemy("tank_1.png", o.x, o.y, o.v, o.dx, o.dy, o.firetime, 0)
         elif type(o) is InnerWall:
             new_object = InnerWall(o.filename, o.x, o.y)
         elif type(o) is OuterWall:
@@ -963,22 +962,24 @@ def CopyWorld():
 
     return objects
 
+
 # ウェイトを更新する関数
 def UpdateWeight():
     Remaining = 5 - len(player.sprite.CannonList)
-    global AD   # 味方との距離の重視度合い(AiiesDistance)
-    global ED   # 敵との距離の重視度合い(EnemyDistance)
-    global WD   # 壁との距離の重視度合い(WallsDistance)
-    global AC   # 弾丸回避の重要度合い(AvoidingCannon)
-    global GD   # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
+    global AD  # 味方との距離の重視度合い(AiiesDistance)
+    global ED  # 敵との距離の重視度合い(EnemyDistance)
+    global WD  # 壁との距離の重視度合い(WallsDistance)
+    global AC  # 弾丸回避の重要度合い(AvoidingCannon)
+    global GD  # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
     global RFD  # 斥力が働き合う距離(RepulsiveForceDistance)
 
     AD = 1
     ED = 6 - Remaining
     WD = 7 - Remaining
     AC = 8
-    GD = GD_origin * (1-((5-Remaining)/10))
-    RFD = RFD_origin * (1-((5-Remaining)/10))
+    GD = GD_origin * (1 - ((5 - Remaining) / 10))
+    RFD = RFD_origin * (1 - ((5 - Remaining) / 10))
+
 
 # 床の描画
 def DrawTiles(m):
@@ -1093,9 +1094,9 @@ def main():
     Player("tank_0.png", w / 4, h / 2, 1)
 
     for i in range(1, Enemy_num + 1):
-        Enemy("tank_1.png", w * 3 / 4, h * i / (Enemy_num + 1), 1, 0, 0, time.time(),i-1)
-        Enemy_pos[2*(i-1)] = w * 3 / 4
-        Enemy_pos[2*(i-1)+1] = h * i / (Enemy_num + 1)
+        Enemy("tank_1.png", w * 3 / 4, h * i / (Enemy_num + 1), 1, 0, 0, time.time(), i - 1)
+        Enemy_pos[2 * (i - 1)] = w * 3 / 4
+        Enemy_pos[2 * (i - 1) + 1] = h * i / (Enemy_num + 1)
 
     # オブジェクト生成
     Map.images[0] = load_img("tile.png")  # 地面
@@ -1125,7 +1126,7 @@ def main():
         if not FinishFlag:
             DrawTiles(m)  # 背景として床を描画
             all_object.draw(screen)  # すべて描写
-            UpdateWeight()  #ウェイトの更新
+            UpdateWeight()  # ウェイトの更新
             all_object.update()  # すべて更新
             # false_image.draw(screen)
             # print(player, enemies, cannons, walls)

@@ -169,22 +169,41 @@ class MovingObject(Object):
 
                 # 壁との判定
                 if type(object_collied) is InnerWall or type(object_collied) is OuterWall:
-                    # 衝突判定の閾値
-                    threshold = [0.5 * (object_collied.rect.width + self.rect.width) - self.v - 1,
-                                 0.5 * (object_collied.rect.height + self.rect.height) - self.v - 1]
+                    wall_collied = pygame.sprite.spritecollide(self, walls, False)
+                    if len(wall_collied) > 2:  # 3つ以上の壁と接触しているとき
+                        result[2] = [1, 1, 1, 1]
 
-                    if difference[0] >= threshold[0]:  # 東方向の壁
-                        self.x = object_collied.x - self.rect.width  # 位置補正
-                        result[2][0] = 1
-                    if difference[0] <= -threshold[0]:  # 西方向の壁
-                        self.x = object_collied.x + object_collied.rect.width  # 位置補正
-                        result[2][1] = 1
-                    if difference[1] >= threshold[1]:  # 南方向の壁
-                        self.y = object_collied.y - self.rect.height  # 位置補正
-                        result[2][2] = 1
-                    if difference[1] <= -threshold[1]:  # 北方向の壁
-                        self.y = object_collied.y + object_collied.rect.height  # 位置補正
-                        result[2][3] = 1
+                    elif len(wall_collied) == 2:  # 2つの壁と接触しているとき
+                        if wall_collied[0].rect.y == wall_collied[1].rect.y:  # 2つの壁のy座標が等しいとき
+                            if self.rect.centerx <= object_collied.rect.centerx:  # 壁の左に自分がいるとき（東方向の接触）
+                                result[2][0] = 1
+                            else:  # 壁の右に自分がいるとき（西方向の接触）
+                                result[2][1] = 1
+
+                        elif wall_collied[0].rect.x == wall_collied[1].rect.x:  # 2つの壁のx座標が等しいとき
+                            if self.rect.centery <= object_collied.rect.centery:  # 壁の上に自分がいるとき（南方向の接触）
+                                result[2][3] = 1
+                            else:  # 壁の下に自分がいるとき（北方向の接触）
+                                result[2][4] = 1
+
+                    else:  # 1つの壁と接触しているとき
+                        # 衝突判定の閾値
+                        threshold = [0.5 * (object_collied.rect.width + self.rect.width) - self.v - 1,
+                                     0.5 * (object_collied.rect.height + self.rect.height) - self.v - 1]
+
+                        if difference[0] >= threshold[0]:  # 東方向の壁
+                            self.x = object_collied.x - self.rect.width  # 位置補正
+                            result[2][0] = 1
+                        if difference[0] <= -threshold[0]:  # 西方向の壁
+                            self.x = object_collied.x + object_collied.rect.width  # 位置補正
+                            result[2][1] = 1
+                        if difference[1] >= threshold[1]:  # 南方向の壁
+                            self.y = object_collied.y - self.rect.height  # 位置補正
+                            result[2][2] = 1
+                        if difference[1] <= -threshold[1]:  # 北方向の壁
+                            self.y = object_collied.y + object_collied.rect.height  # 位置補正
+                            result[2][3] = 1
+
                     break
 
         return result

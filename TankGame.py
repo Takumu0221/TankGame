@@ -322,7 +322,7 @@ class Player(Tank):
     def Shot(self):
         # マウスクリックで砲弾発射
         # 砲弾の角度を求める
-        rad = GetCannonAngle(x_target, y_target, self.x, self.y)
+        rad = GetCannonAngle(x_target, y_target, self.rect.centerx, self.rect.centery)
         dx, dy = GetVelocity(rad, self.CannonSpeed)
         # 戦車に追加
         if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
@@ -675,6 +675,13 @@ class Enemy(Tank):
 
     # 壁で反射できるかどうかの判定（内壁・外壁）
     def ReflectionWall(self, x, y):
+        # 引数の示す座標に疑似プレイヤーオブジェクトを配置
+        width = player.sprite.rect.width / 2
+        height = player.sprite.rect.height / 2
+        Player.containers = all_object
+        p = Player("tank_0.png", x - width, y - height, 1)
+        Player.containers = all_object, player
+
         # 自分からn方向への直線を得る（始点と終点で定義）（終点は始点からw×2先の点）
         line_list = []  # 直線のリスト
         rad_player = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)  # 自分とプレイヤーとの角度
@@ -738,7 +745,7 @@ class Enemy(Tank):
         # 反転させた直線について,プレイヤーと交わる物を得る
         Shot_line_list = []
         for line in reflected_line_list:
-            points = player.sprite.DetectIntersection(line[0], line[1])  # プレイヤーとの交点を求める
+            points = p.DetectIntersection(line[0], line[1])  # プレイヤーとの交点を求める
             if points != [0, 0, 0, 0]:  # 交点が存在するとき
                 player_dis = GetDistance(player.sprite.rect.centerx, player.sprite.rect.centery,
                                          line[0][0], line[0][1])  # プレイヤーと反射点の距離
@@ -752,6 +759,9 @@ class Enemy(Tank):
                 if flag:
                     Shot_line_list.append(line)  # リストに追加
                     # print(line)
+
+        # 疑似プレイヤーオブジェクトを削除
+        p.kill()
 
         # 角度を返す
         if len(Shot_line_list) > 0:  # リストが空でないとき

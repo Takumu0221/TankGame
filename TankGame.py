@@ -10,7 +10,7 @@ import random
 
 (x_target, y_target) = (0, 0)  # 目標位置
 
-Enemy_num = 3  # 敵戦車の数
+Enemy_num = 1  # 敵戦車の数
 Enemy_pos = [0] * (2 * Enemy_num)  # 各敵戦車の位置を記録するリスト
 
 
@@ -41,15 +41,15 @@ class Map:
     map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
@@ -170,21 +170,23 @@ class MovingObject(Object):
                 # 壁との判定
                 if type(object_collied) is InnerWall or type(object_collied) is OuterWall:
                     wall_collied = pygame.sprite.spritecollide(self, walls, False)
-                    if len(wall_collied) > 2:  # 3つ以上の壁と接触しているとき
-                        result[2] = [1, 1, 1, 1]
+                    if len(wall_collied) >= 2:  # 2つ以上の壁と接触しているとき
+                        for i in range(len(wall_collied)):
+                            if wall_collied[i].rect.x == wall_collied[(i + 1) % len(wall_collied)].rect.x:  # 2つの壁のy座標が等しいとき
+                                if self.rect.centerx <= wall_collied[i].rect.centerx:  # 壁の左に自分がいるとき（東方向の接触）
+                                    result[2][0] = 1
+                                    self.x = wall_collied[i].x - self.rect.width  # 位置補正
+                                else:  # 壁の右に自分がいるとき（西方向の接触）
+                                    result[2][1] = 1
+                                    self.x = wall_collied[i].x + object_collied.rect.width  # 位置補正
 
-                    elif len(wall_collied) == 2:  # 2つの壁と接触しているとき
-                        if wall_collied[0].rect.y == wall_collied[1].rect.y:  # 2つの壁のy座標が等しいとき
-                            if self.rect.centerx <= object_collied.rect.centerx:  # 壁の左に自分がいるとき（東方向の接触）
-                                result[2][0] = 1
-                            else:  # 壁の右に自分がいるとき（西方向の接触）
-                                result[2][1] = 1
-
-                        elif wall_collied[0].rect.x == wall_collied[1].rect.x:  # 2つの壁のx座標が等しいとき
-                            if self.rect.centery <= object_collied.rect.centery:  # 壁の上に自分がいるとき（南方向の接触）
-                                result[2][3] = 1
-                            else:  # 壁の下に自分がいるとき（北方向の接触）
-                                result[2][4] = 1
+                            elif wall_collied[i].rect.y == wall_collied[(i + 1) % len(wall_collied)].rect.y:  # 2つの壁のx座標が等しいとき
+                                if self.rect.centery <= wall_collied[i].rect.centery:  # 壁の上に自分がいるとき（南方向の接触）
+                                    result[2][2] = 1
+                                    self.y = wall_collied[i].y - self.rect.height  # 位置補正
+                                else:  # 壁の下に自分がいるとき（北方向の接触）
+                                    result[2][3] = 1
+                                    self.y = wall_collied[i].y + wall_collied[i].rect.height  # 位置補正
 
                     else:  # 1つの壁と接触しているとき
                         # 衝突判定の閾値
@@ -194,15 +196,18 @@ class MovingObject(Object):
                         if difference[0] >= threshold[0]:  # 東方向の壁
                             self.x = object_collied.x - self.rect.width  # 位置補正
                             result[2][0] = 1
-                        if difference[0] <= -threshold[0]:  # 西方向の壁
+                        elif difference[0] <= -threshold[0]:  # 西方向の壁
                             self.x = object_collied.x + object_collied.rect.width  # 位置補正
                             result[2][1] = 1
-                        if difference[1] >= threshold[1]:  # 南方向の壁
+                        elif difference[1] >= threshold[1]:  # 南方向の壁
                             self.y = object_collied.y - self.rect.height  # 位置補正
                             result[2][2] = 1
-                        if difference[1] <= -threshold[1]:  # 北方向の壁
+                        elif difference[1] <= -threshold[1]:  # 北方向の壁
                             self.y = object_collied.y + object_collied.rect.height  # 位置補正
                             result[2][3] = 1
+                        else:  # 壁に入り込んでいるとき
+                            self.kill()
+
 
                     break
 

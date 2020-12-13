@@ -10,7 +10,7 @@ import random
 
 (x_target, y_target) = (0, 0)  # 目標位置
 
-Enemy_num = 1  # 敵戦車の数
+Enemy_num = 3  # 敵戦車の数
 Enemy_pos = [0] * (2 * Enemy_num)  # 各敵戦車の位置を記録するリスト
 
 
@@ -24,9 +24,9 @@ def Enemy_pos_res():
 
 # 敵戦車移動に関するウェイト(0→移動に影響しない)
 AD = 4  # 味方との距離の重視度合い(AiiesDistance)
-ED = 5  # 敵との距離の重視度合い(EnemyDistance)
-WD = 6  # 壁との距離の重視度合い(WallsDistance)
-AC = 7  # 弾丸回避の重要度合い(AvoidingCannon)
+ED = 1  # 敵との距離の重視度合い(EnemyDistance)
+WD = 2  # 壁との距離の重視度合い(WallsDistance)
+AC = 8  # 弾丸回避の重要度合い(AvoidingCannon)
 # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
 GD = 305
 GD_origin = GD
@@ -41,15 +41,15 @@ class Map:
     map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1],
+           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
@@ -501,7 +501,6 @@ class Enemy(Tank):
         if cannon_num == 0:  # 相手の今いる位置に射撃
             if dis <= GD + 40:
                 x, y = self.GetDeviationPosition(target, dev_dis)
-                print("S0", x, y)
                 self.burst = 1
 
         elif cannon_num == 1:  # 偏差射撃（1.5倍）
@@ -522,7 +521,7 @@ class Enemy(Tank):
                     (x, y) = player.sprite.rect.center
 
         elif 3 <= cannon_num:  # 残りの砲弾
-            if dis < GD_origin * 0.6:  # プレイヤーとの距離が近い場合
+            if dis < GD_origin * 0.8:  # プレイヤーとの距離が近い場合
                 (x, y) = player.sprite.rect.center  # 相手の今いる位置に射撃
             else:
                 return 0
@@ -573,6 +572,7 @@ class Enemy(Tank):
             if self.JudgeAim(rad):
                 return rad
         """
+
         # 反射で狙えるか判定
         rad = self.ReflectionWall(x, y)
         if rad is not None:
@@ -585,12 +585,35 @@ class Enemy(Tank):
         shot_x, shot_y = self.GetShotPoint(rad)
         dx, dy = GetVelocity(rad, self.CannonSpeed)
 
+        """
         # シミュレーションを行う
         result_direct = self.MoveSimulation(Cannon("cannon.png", shot_x, shot_y, self.CannonSpeed, dx, dy))
         if type(result_direct[0]) is Player:  # シミュレーションした結果、プレイヤーに当たる時
             return True
         else:
             return False
+        """
+
+        # シミュレーションを行う
+        start_x, start_y = self.rect.center
+        length = max(w, h)  # 画面の縦と横の内大きい方
+        end_x = start_x + length * math.cos(rad)
+        end_y = start_y + length * math.sin(rad)
+
+        line = [[start_x, start_y], [end_x, end_y]]  # radで指定された方向の直線（線分）a
+        dis_p = GetDistance(self.rect.centerx, self.rect.centery,  # プレイヤーと自分との距離
+                            player.sprite.rect.centerx, player.sprite.rect.centery)
+
+        for o in all_object.sprites():
+            points = o.DetectIntersection(line[0], line[1])
+            if points != [0, 0, 0, 0]:  # 交点が存在する
+                if enemies.has(o) and o is not self or walls.has(o):
+                    dis_o = GetDistance(self.rect.centerx, self.rect.centery,  # オブジェクトと自分との距離
+                                        o.rect.centerx, o.rect.centery)
+                    if dis_p > dis_o:
+                        return False
+
+        return True
 
     # 砲弾などの移動シミュレーション
     @staticmethod

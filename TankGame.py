@@ -23,7 +23,7 @@ def Enemy_pos_res():
 
 
 # 敵戦車移動に関するウェイト(0→移動に影響しない)
-AD = 4  # 味方との距離の重視度合い(AiiesDistance)
+AD = 4  # 味方との距離の重視度合い(AIDistance)
 ED = 1  # 敵との距離の重視度合い(EnemyDistance)
 WD = 2  # 壁との距離の重視度合い(WallsDistance)
 AC = 8  # 弾丸回避の重要度合い(AvoidingCannon)
@@ -72,8 +72,8 @@ class Object(pygame.sprite.Sprite):
         height = self.image.get_height()  # 縦幅
         self.rect = Rect(x, y, width, height)  # 四角形の宣言
 
-    def draw(self, screen):
-        screen.blit(self.image, self.rect)
+    def draw(self, Screen):
+        Screen.blit(self.image, self.rect)
 
     # 直線とオブジェクトが交わるか判定
     def DetectIntersection(self, P0, P1):
@@ -95,8 +95,8 @@ class Wall(Object):
     def __init__(self, filename, x, y):
         super().__init__(filename, x, y)
 
-    def draw(self, screen):
-        screen.blit(self.image, self.rect)
+    def draw(self, Screen):
+        Screen.blit(self.image, self.rect)
 
 
 class InnerWall(Wall):
@@ -172,7 +172,8 @@ class MovingObject(Object):
                     wall_collied = pygame.sprite.spritecollide(self, walls, False)
                     if len(wall_collied) >= 2:  # 2つ以上の壁と接触しているとき
                         for i in range(len(wall_collied)):
-                            if wall_collied[i].rect.x == wall_collied[(i + 1) % len(wall_collied)].rect.x:  # 2つの壁のy座標が等しいとき
+                            if wall_collied[i].rect.x == \
+                                    wall_collied[(i + 1) % len(wall_collied)].rect.x:  # 2つの壁のy座標が等しいとき
                                 if self.rect.centerx <= wall_collied[i].rect.centerx:  # 壁の左に自分がいるとき（東方向の接触）
                                     result[2][0] = 1
                                     self.x = wall_collied[i].x - self.rect.width  # 位置補正
@@ -180,7 +181,8 @@ class MovingObject(Object):
                                     result[2][1] = 1
                                     self.x = wall_collied[i].x + object_collied.rect.width  # 位置補正
 
-                            elif wall_collied[i].rect.y == wall_collied[(i + 1) % len(wall_collied)].rect.y:  # 2つの壁のx座標が等しいとき
+                            elif wall_collied[i].rect.y == \
+                                    wall_collied[(i + 1) % len(wall_collied)].rect.y:  # 2つの壁のx座標が等しいとき
                                 if self.rect.centery <= wall_collied[i].rect.centery:  # 壁の上に自分がいるとき（南方向の接触）
                                     result[2][2] = 1
                                     self.y = wall_collied[i].y - self.rect.height  # 位置補正
@@ -207,7 +209,6 @@ class MovingObject(Object):
                             result[2][3] = 1
                         else:  # 壁に入り込んでいるとき
                             self.kill()
-
 
                     break
 
@@ -582,10 +583,10 @@ class Enemy(Tank):
 
     # 狙えるか判定する
     def JudgeAim(self, rad):
+        """
         shot_x, shot_y = self.GetShotPoint(rad)
         dx, dy = GetVelocity(rad, self.CannonSpeed)
 
-        """
         # シミュレーションを行う
         result_direct = self.MoveSimulation(Cannon("cannon.png", shot_x, shot_y, self.CannonSpeed, dx, dy))
         if type(result_direct[0]) is Player:  # シミュレーションした結果、プレイヤーに当たる時
@@ -674,7 +675,7 @@ class Enemy(Tank):
                 players.append(o)
 
         # 外壁での反射で狙えるかの判定
-        enemy_tanks = enemies.sprites() + [x for x in false_image if type(x) is Enemy]
+        # enemy_tanks = enemies.sprites() + [x for x in false_image if type(x) is Enemy]
         rad = None
         # print(enemy_tanks)
         for p in players:
@@ -996,7 +997,7 @@ def MakeWalls(m):
 # worldのコピー
 def CopyWorld():
     objects = pygame.sprite.Group()  # 新しいworld
-    new_object = 0  # 新しく生成したオブジェクト
+    # new_object = 0  # 新しく生成したオブジェクト
 
     # オブジェクトを一つ一つコピー
     for o in all_object:
@@ -1023,7 +1024,7 @@ def CopyWorld():
 # ウェイトを更新する関数
 def UpdateWeight():
     Remaining = 5 - len(player.sprite.CannonList)
-    global AD  # 味方との距離の重視度合い(AiiesDistance)
+    global AD  # 味方との距離の重視度合い(AIDistance)
     global ED  # 敵との距離の重視度合い(EnemyDistance)
     global WD  # 壁との距離の重視度合い(WallsDistance)
     global AC  # 弾丸回避の重要度合い(AvoidingCannon)

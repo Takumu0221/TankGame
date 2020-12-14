@@ -39,15 +39,15 @@ class Map:
     map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1],
+           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
@@ -315,15 +315,17 @@ class Enemy(Tank):
         self.frames = 0  # 射撃間隔を測る際に使用
         self.CD_list = []  # 移動方向を決定するリスト
         self.burst = 0  # 3点バーストにするための変数
+        self.Shotlog = [0] * 10
 
     def update(self):
         if all_object.has(player):
-            self.Move()  # 戦車の移動
 
             # 砲弾の発射
             self.Shot()
             # 砲弾の整理
             self.AdjustCannonList()
+            
+            self.Move()  # 戦車の移動
 
             # 座標の更新
             self.rect.x = self.x
@@ -357,7 +359,7 @@ class Enemy(Tank):
     ###################### プレイヤーとの距離感に対するバネの力の方向 ##################
     def Sense_of_Distance(self):
         distance = GetDistance(player.sprite.x, player.sprite.y, self.x, self.y)
-        change = distance - GD
+        change = distance - GD * (1 - self.Shotlog.count(0) / 20)
         if change > 0:
             return 1
         elif change == 0:
@@ -412,7 +414,7 @@ class Enemy(Tank):
             if wx == -1 and wx == -1 and d == -1:
                 continue
             else:
-                weight = WD * 1 / (d ** 2)
+                weight = WD * 1 / (d ** 2) * math.ceil(1 - self.Shotlog.count(0) / 10)
                 self.Add_CD_list(weight, wx, wy)
 
         # 各戦車の移動を計算
@@ -551,8 +553,12 @@ class Enemy(Tank):
         # シミュレーションを行う
         result_direct = self.MoveSimulation(Cannon("cannon.png", shot_x, shot_y, self.CannonSpeed, dx, dy))
         if type(result_direct[0]) is Player:  # シミュレーションした結果、プレイヤーに当たる時
+            self.Shotlog.pop(0) # 要素数の0
+            self.Shotlog.append(1) # 値の1
             return True
         else:
+            self.Shotlog.pop(0)
+            self.Shotlog.append(0)
             return False
 
     # 砲弾などの移動シミュレーション
@@ -742,12 +748,13 @@ def GetSpeed(List):
         result[0] += i[0] * i[1]
         result[1] += i[0] * i[2]
     dev = math.sqrt(result[0] ** 2 + result[1] ** 2)
-    if not dev == 0:
-        result[0] = result[0] / dev  # 正規化
-        result[1] = result[1] / dev  # 正規化
-    else:
+    # しきい値を設定
+    if dev < 0.6:
         result[0] = 0
         result[1] = 0
+    else:
+        result[0] = result[0] / dev  # 正規化
+        result[1] = result[1] / dev  # 正規化
     
     
     # 最終的な移動方向決定
@@ -862,9 +869,9 @@ def UpdateWeight():
     global GD   # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
     global RFD  # 斥力が働き合う距離(RepulsiveForceDistance)
 
-    AD = 1
-    ED = 6 - Remaining
-    WD = 7 - Remaining
+    AD = 3
+    ED = 1 + Remaining
+    WD = 2 + Remaining
     AC = 8
     GD = GD_origin * (1-((5-Remaining)/10))
     RFD = RFD_origin * (1-((5-Remaining)/10))
@@ -948,9 +955,16 @@ pygame.display.set_caption("TANK GAME")
 screen = pygame.display.get_surface()
 
 # フォント
-font = pygame.font.SysFont(None, 60)
+font = pygame.font.SysFont(None, 80)
 text1 = font.render("   You Win!   ", True, (255, 255, 0))
 text2 = font.render("You Exploded!", True, (255, 64, 64))
+
+font2 = pygame.font.SysFont(None, 80)
+text_ready = font2.render("Ready...?", True, (255, 255, 255))
+
+font3 = pygame.font.SysFont(None, 35)
+text_move = font3.render("move to WASD or Arrow Key", True, (255, 255, 255))
+text_click = font3.render("click to START", True, (255, 255, 255))
 
 # グループの準備
 player = pygame.sprite.GroupSingle(None)
@@ -1005,6 +1019,30 @@ def main():
     print('Repulsive Force Distance')
     print(RFD)
 
+    # 準備画面
+    screen.blit(text_ready, (w / 3, h / 4))
+    screen.blit(text_click, (w / 3 + 20, h / 3 + 30))
+    screen.blit(text_move, (w / 4 + 10, 3 * h / 4))
+    pygame.display.update()
+
+    ReadyFlag = True
+    while ReadyFlag:
+        pygame.time.wait(10)
+        for event in pygame.event.get():
+            if event.type == MOUSEBUTTONDOWN and event.button == 1:
+                ReadyFlag = False
+            if event.type == QUIT:  # 閉じるボタンが押されたとき
+                    pygame.quit()
+                    sys.exit()
+            if event.type == KEYDOWN:  # キーを押したとき
+                if event.key == K_ESCAPE:  # Escキーが押されたとき
+                    pygame.quit()
+                    sys.exit()
+
+    DrawTiles(m)
+    pygame.display.update()
+    pygame.time.wait(300)
+
     while 1:
         pygame.time.wait(10)  # 更新時間間隔
 
@@ -1037,7 +1075,6 @@ def main():
 
         # イベント処理
         for event in pygame.event.get():
-            # マウスクリックで砲弾発射
             # 終了フラグが立ってるときはクリックで終了
             if event.type == MOUSEBUTTONDOWN and event.button == 1:
                 if FinishFlag:

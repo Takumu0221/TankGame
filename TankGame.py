@@ -350,7 +350,6 @@ class Enemy(Tank):
 
     def update(self):
         if all_object.has(player.sprite):
-
             # 砲弾の発射
             self.Shot()
             # 砲弾の整理
@@ -919,7 +918,6 @@ def GetSpeed(List):
         result[0] = result[0] / dev  # 正規化
         result[1] = result[1] / dev  # 正規化
 
-
     # 最終的な移動方向決定
     # 単位円を考えたときにそのx，y方向を1とするか0とするか
     if abs(result[0]) >= math.cos(3 * math.pi / 8):
@@ -1166,10 +1164,10 @@ def main():
 
     # 戦車の準備
     global y_target, x_target
-    Player("tank_0.png", w / 4, h / 2, 0.8)
+    Player("tank_0.png", w / 4, h / 2, 1.0)
 
     for i in range(1, Enemy_num + 1):
-        Enemy("tank_1.png", w * 3 / 4, h * i / (Enemy_num + 1), 0.8, 0, 0, time.time(), i - 1)
+        Enemy("tank_1.png", w * 3 / 4, h * i / (Enemy_num + 1), 0.7, 0, 0, time.time(), i - 1)
         Enemy_pos[2 * (i - 1)] = w * 3 / 4
         Enemy_pos[2 * (i - 1) + 1] = h * i / (Enemy_num + 1)
 
@@ -1207,8 +1205,8 @@ def main():
             if event.type == MOUSEBUTTONDOWN and event.button == 1:
                 ReadyFlag = False
             if event.type == QUIT:  # 閉じるボタンが押されたとき
-                    pygame.quit()
-                    sys.exit()
+                pygame.quit()
+                sys.exit()
             if event.type == KEYDOWN:  # キーを押したとき
                 if event.key == K_ESCAPE:  # Escキーが押されたとき
                     pygame.quit()

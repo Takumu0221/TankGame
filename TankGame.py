@@ -23,10 +23,10 @@ def Enemy_pos_res():
 
 
 # 敵戦車移動に関するウェイト(0→移動に影響しない)
-AD = 4  # 味方との距離の重視度合い(AiiesDistance)
-ED = 5  # 敵との距離の重視度合い(EnemyDistance)
-WD = 6  # 壁との距離の重視度合い(WallsDistance)
-AC = 7  # 弾丸回避の重要度合い(AvoidingCannon)
+AD = 4  # 味方との距離の重視度合い(AIDistance)
+ED = 1  # 敵との距離の重視度合い(EnemyDistance)
+WD = 2  # 壁との距離の重視度合い(WallsDistance)
+AC = 8  # 弾丸回避の重要度合い(AvoidingCannon)
 # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
 GD = 305
 GD_origin = GD
@@ -41,15 +41,15 @@ class Map:
     map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1],
+           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
@@ -72,8 +72,8 @@ class Object(pygame.sprite.Sprite):
         height = self.image.get_height()  # 縦幅
         self.rect = Rect(x, y, width, height)  # 四角形の宣言
 
-    def draw(self, screen):
-        screen.blit(self.image, self.rect)
+    def draw(self, Screen):
+        Screen.blit(self.image, self.rect)
 
     # 直線とオブジェクトが交わるか判定
     def DetectIntersection(self, P0, P1):
@@ -95,8 +95,8 @@ class Wall(Object):
     def __init__(self, filename, x, y):
         super().__init__(filename, x, y)
 
-    def draw(self, screen):
-        screen.blit(self.image, self.rect)
+    def draw(self, Screen):
+        Screen.blit(self.image, self.rect)
 
 
 class InnerWall(Wall):
@@ -169,22 +169,47 @@ class MovingObject(Object):
 
                 # 壁との判定
                 if type(object_collied) is InnerWall or type(object_collied) is OuterWall:
-                    # 衝突判定の閾値
-                    threshold = [0.5 * (object_collied.rect.width + self.rect.width) - self.v - 1,
-                                 0.5 * (object_collied.rect.height + self.rect.height) - self.v - 1]
+                    wall_collied = pygame.sprite.spritecollide(self, walls, False)
+                    if len(wall_collied) >= 2:  # 2つ以上の壁と接触しているとき
+                        for i in range(len(wall_collied)):
+                            if wall_collied[i].rect.x == \
+                                    wall_collied[(i + 1) % len(wall_collied)].rect.x:  # 2つの壁のy座標が等しいとき
+                                if self.rect.centerx <= wall_collied[i].rect.centerx:  # 壁の左に自分がいるとき（東方向の接触）
+                                    result[2][0] = 1
+                                    self.x = wall_collied[i].x - self.rect.width  # 位置補正
+                                else:  # 壁の右に自分がいるとき（西方向の接触）
+                                    result[2][1] = 1
+                                    self.x = wall_collied[i].x + object_collied.rect.width  # 位置補正
 
-                    if difference[0] >= threshold[0]:  # 東方向の壁
-                        self.x = object_collied.x - self.rect.width  # 位置補正
-                        result[2][0] = 1
-                    if difference[0] <= -threshold[0]:  # 西方向の壁
-                        self.x = object_collied.x + object_collied.rect.width  # 位置補正
-                        result[2][1] = 1
-                    if difference[1] >= threshold[1]:  # 南方向の壁
-                        self.y = object_collied.y - self.rect.height  # 位置補正
-                        result[2][2] = 1
-                    if difference[1] <= -threshold[1]:  # 北方向の壁
-                        self.y = object_collied.y + object_collied.rect.height  # 位置補正
-                        result[2][3] = 1
+                            elif wall_collied[i].rect.y == \
+                                    wall_collied[(i + 1) % len(wall_collied)].rect.y:  # 2つの壁のx座標が等しいとき
+                                if self.rect.centery <= wall_collied[i].rect.centery:  # 壁の上に自分がいるとき（南方向の接触）
+                                    result[2][2] = 1
+                                    self.y = wall_collied[i].y - self.rect.height  # 位置補正
+                                else:  # 壁の下に自分がいるとき（北方向の接触）
+                                    result[2][3] = 1
+                                    self.y = wall_collied[i].y + wall_collied[i].rect.height  # 位置補正
+
+                    else:  # 1つの壁と接触しているとき
+                        # 衝突判定の閾値
+                        threshold = [0.5 * (object_collied.rect.width + self.rect.width) - self.v - 1,
+                                     0.5 * (object_collied.rect.height + self.rect.height) - self.v - 1]
+
+                        if difference[0] >= threshold[0]:  # 東方向の壁
+                            self.x = object_collied.x - self.rect.width  # 位置補正
+                            result[2][0] = 1
+                        elif difference[0] <= -threshold[0]:  # 西方向の壁
+                            self.x = object_collied.x + object_collied.rect.width  # 位置補正
+                            result[2][1] = 1
+                        elif difference[1] >= threshold[1]:  # 南方向の壁
+                            self.y = object_collied.y - self.rect.height  # 位置補正
+                            result[2][2] = 1
+                        elif difference[1] <= -threshold[1]:  # 北方向の壁
+                            self.y = object_collied.y + object_collied.rect.height  # 位置補正
+                            result[2][3] = 1
+                        else:  # 壁に入り込んでいるとき
+                            self.kill()
+
                     break
 
         return result
@@ -298,7 +323,7 @@ class Player(Tank):
     def Shot(self):
         # マウスクリックで砲弾発射
         # 砲弾の角度を求める
-        rad = GetCannonAngle(x_target, y_target, self.x, self.y)
+        rad = GetCannonAngle(x_target, y_target, self.rect.centerx, self.rect.centery)
         dx, dy = GetVelocity(rad, self.CannonSpeed)
         # 戦車に追加
         if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
@@ -477,7 +502,6 @@ class Enemy(Tank):
         if cannon_num == 0:  # 相手の今いる位置に射撃
             if dis <= GD + 40:
                 x, y = self.GetDeviationPosition(target, dev_dis)
-                print("S0", x, y)
                 self.burst = 1
 
         elif cannon_num == 1:  # 偏差射撃（1.5倍）
@@ -498,7 +522,7 @@ class Enemy(Tank):
                     (x, y) = player.sprite.rect.center
 
         elif 3 <= cannon_num:  # 残りの砲弾
-            if dis < GD_origin * 0.6:  # プレイヤーとの距離が近い場合
+            if dis < GD_origin * 0.8:  # プレイヤーとの距離が近い場合
                 (x, y) = player.sprite.rect.center  # 相手の今いる位置に射撃
             else:
                 return 0
@@ -549,6 +573,7 @@ class Enemy(Tank):
             if self.JudgeAim(rad):
                 return rad
         """
+
         # 反射で狙えるか判定
         rad = self.ReflectionWall(x, y)
         if rad is not None:
@@ -558,6 +583,7 @@ class Enemy(Tank):
 
     # 狙えるか判定する
     def JudgeAim(self, rad):
+        """
         shot_x, shot_y = self.GetShotPoint(rad)
         dx, dy = GetVelocity(rad, self.CannonSpeed)
 
@@ -567,6 +593,28 @@ class Enemy(Tank):
             return True
         else:
             return False
+        """
+
+        # シミュレーションを行う
+        start_x, start_y = self.rect.center
+        length = max(w, h)  # 画面の縦と横の内大きい方
+        end_x = start_x + length * math.cos(rad)
+        end_y = start_y + length * math.sin(rad)
+
+        line = [[start_x, start_y], [end_x, end_y]]  # radで指定された方向の直線（線分）a
+        dis_p = GetDistance(self.rect.centerx, self.rect.centery,  # プレイヤーと自分との距離
+                            player.sprite.rect.centerx, player.sprite.rect.centery)
+
+        for o in all_object.sprites():
+            points = o.DetectIntersection(line[0], line[1])
+            if points != [0, 0, 0, 0]:  # 交点が存在する
+                if enemies.has(o) and o is not self or walls.has(o):
+                    dis_o = GetDistance(self.rect.centerx, self.rect.centery,  # オブジェクトと自分との距離
+                                        o.rect.centerx, o.rect.centery)
+                    if dis_p > dis_o:
+                        return False
+
+        return True
 
     # 砲弾などの移動シミュレーション
     @staticmethod
@@ -627,7 +675,7 @@ class Enemy(Tank):
                 players.append(o)
 
         # 外壁での反射で狙えるかの判定
-        enemy_tanks = enemies.sprites() + [x for x in false_image if type(x) is Enemy]
+        # enemy_tanks = enemies.sprites() + [x for x in false_image if type(x) is Enemy]
         rad = None
         # print(enemy_tanks)
         for p in players:
@@ -651,6 +699,13 @@ class Enemy(Tank):
 
     # 壁で反射できるかどうかの判定（内壁・外壁）
     def ReflectionWall(self, x, y):
+        # 引数の示す座標に疑似プレイヤーオブジェクトを配置
+        width = player.sprite.rect.width / 2
+        height = player.sprite.rect.height / 2
+        Player.containers = all_object
+        p = Player("tank_0.png", x - width, y - height, 1)
+        Player.containers = all_object, player
+
         # 自分からn方向への直線を得る（始点と終点で定義）（終点は始点からw×2先の点）
         line_list = []  # 直線のリスト
         rad_player = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)  # 自分とプレイヤーとの角度
@@ -714,7 +769,7 @@ class Enemy(Tank):
         # 反転させた直線について,プレイヤーと交わる物を得る
         Shot_line_list = []
         for line in reflected_line_list:
-            points = player.sprite.DetectIntersection(line[0], line[1])  # プレイヤーとの交点を求める
+            points = p.DetectIntersection(line[0], line[1])  # プレイヤーとの交点を求める
             if points != [0, 0, 0, 0]:  # 交点が存在するとき
                 player_dis = GetDistance(player.sprite.rect.centerx, player.sprite.rect.centery,
                                          line[0][0], line[0][1])  # プレイヤーと反射点の距離
@@ -728,6 +783,9 @@ class Enemy(Tank):
                 if flag:
                     Shot_line_list.append(line)  # リストに追加
                     # print(line)
+
+        # 疑似プレイヤーオブジェクトを削除
+        p.kill()
 
         # 角度を返す
         if len(Shot_line_list) > 0:  # リストが空でないとき
@@ -939,7 +997,7 @@ def MakeWalls(m):
 # worldのコピー
 def CopyWorld():
     objects = pygame.sprite.Group()  # 新しいworld
-    new_object = 0  # 新しく生成したオブジェクト
+    # new_object = 0  # 新しく生成したオブジェクト
 
     # オブジェクトを一つ一つコピー
     for o in all_object:
@@ -966,7 +1024,7 @@ def CopyWorld():
 # ウェイトを更新する関数
 def UpdateWeight():
     Remaining = 5 - len(player.sprite.CannonList)
-    global AD  # 味方との距離の重視度合い(AiiesDistance)
+    global AD  # 味方との距離の重視度合い(AIDistance)
     global ED  # 敵との距離の重視度合い(EnemyDistance)
     global WD  # 壁との距離の重視度合い(WallsDistance)
     global AC  # 弾丸回避の重要度合い(AvoidingCannon)

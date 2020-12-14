@@ -450,6 +450,8 @@ class Enemy(Tank):
 
         # 各戦車の移動を計算
         self.dx, self.dy = GetSpeed(self.CD_list)
+        self.dx = self.dx * self.v
+        self.dy = self.dy * self.v
 
         # 戦車との当たり判定
         if result[1][0] > 0 and self.dx > 0 or result[1][1] > 0 and self.dx < 0:
@@ -1164,10 +1166,10 @@ def main():
 
     # 戦車の準備
     global y_target, x_target
-    Player("tank_0.png", w / 4, h / 2, 1)
+    Player("tank_0.png", w / 4, h / 2, 0.8)
 
     for i in range(1, Enemy_num + 1):
-        Enemy("tank_1.png", w * 3 / 4, h * i / (Enemy_num + 1), 1, 0, 0, time.time(), i - 1)
+        Enemy("tank_1.png", w * 3 / 4, h * i / (Enemy_num + 1), 0.8, 0, 0, time.time(), i - 1)
         Enemy_pos[2 * (i - 1)] = w * 3 / 4
         Enemy_pos[2 * (i - 1) + 1] = h * i / (Enemy_num + 1)
 

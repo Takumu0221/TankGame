@@ -5,6 +5,9 @@ import math
 import sys
 import time
 import random
+import numpy as np
+from scipy.sparse.csgraph import shortest_path
+import itertools
 
 (w, h) = (800, 600)  # 画面サイズ
 
@@ -12,6 +15,8 @@ import random
 
 Enemy_num = 3  # 敵戦車の数
 Enemy_pos = [0] * (2 * Enemy_num)  # 各敵戦車の位置を記録するリスト
+
+distance_matrix = 0  # 経路的な距離行列
 
 
 # 敵戦車の位置を記録するリストの初期化(死んだ戦車の管理のため)
@@ -486,8 +491,8 @@ class Enemy(Tank):
 
             # 指定された方向に撃つ
             if rad:
-                self.Shotlog.pop(0) # 要素数の0
-                self.Shotlog.append(1) # 値の1
+                self.Shotlog.pop(0)  # 要素数の0
+                self.Shotlog.append(1)  # 値の1
                 self.GunDirection = rad  # 射撃口の向きを更新
                 self.shot_x, self.shot_y = self.GetShotPoint(rad)  # 射撃ポイントを求める
 
@@ -496,8 +501,8 @@ class Enemy(Tank):
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
                     self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
             else:
-                self.Shotlog.pop(0) # 要素数の0
-                self.Shotlog.append(0) # 値の0
+                self.Shotlog.pop(0)  # 要素数の0
+                self.Shotlog.append(0)  # 値の0
 
     # 射撃の戦術アルゴリズム
     def ShotStrategy(self, target):
@@ -851,6 +856,13 @@ class Enemy(Tank):
         else:
             return -1, -1, -1
 
+    def GetPathDistance(self, P0, P1):
+        # 与えられた座標がどのブロックに該当するかを計算
+        # distance_matrixを用いて経路長を計算（参照する）
+        # 経路長（ブロック数×40）と（できれば）ブロックの中心からの距離を足して返す
+
+        return self
+
 
 # 砲弾
 class Cannon(MovingObject):
@@ -1122,6 +1134,28 @@ def UpdateFalseImage():
                     1].rect.height * 0.5
 
 
+# 経路的な距離行列の作成
+def MakeDistanceMatrix():
+    m = Map.map  # マップデータ
+
+    map_size = np.array(m).size
+    map_shape = np.array(m).shape
+
+    adjacent = [[0 for _ in range(map_size)] for _ in range(map_size)]
+
+    for i, xy in enumerate(itertools.product(range(map_shape[0]), range(map_shape[1]))):
+        x, y = xy
+        for delta in [(-1, 0), (0, 1), (1, 0), (0, -1)]:
+            nx = x + delta[0]
+            ny = y + delta[1]
+            if 0 <= nx < map_shape[0] and 0 <= ny < map_shape[1]:
+                if m[x][y] == 0 and m[nx][ny] == 0:
+                    adjacent[15 * x + y][15 * nx + ny] = 1
+
+    # print(shortest_path(np.array(adjacent))[150])
+    return shortest_path(np.array(adjacent))
+
+
 # pygameの準備
 pygame.init()  # pygame初期化
 pygame.display.set_mode((w, h), 0, 32)  # 画面設定
@@ -1178,6 +1212,8 @@ def main():
     m = Map()
     MakeWalls(m)  # 壁を生成
     MakeFalseImage()  # 虚像オブジェクトの生成
+
+    distance_matrix = MakeDistanceMatrix()  # 距離行列の作成
 
     # 敵戦車のウェイトを表示
     print('Weight of Allies Distance:')

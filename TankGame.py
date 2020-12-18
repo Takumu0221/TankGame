@@ -346,7 +346,7 @@ class Enemy(Tank):
         self.frames = 0  # 射撃間隔を測る際に使用
         self.CD_list = []  # 移動方向を決定するリスト
         self.burst = 0  # 3点バーストにするための変数
-        self.Shotlog = [0] * 10
+        self.Shotlog = [1] * 10
 
     def update(self):
         if all_object.has(player.sprite):
@@ -486,6 +486,8 @@ class Enemy(Tank):
 
             # 指定された方向に撃つ
             if rad:
+                self.Shotlog.pop(0) # 要素数の0
+                self.Shotlog.append(1) # 値の1
                 self.GunDirection = rad  # 射撃口の向きを更新
                 self.shot_x, self.shot_y = self.GetShotPoint(rad)  # 射撃ポイントを求める
 
@@ -493,6 +495,9 @@ class Enemy(Tank):
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
                     self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+            else:
+                self.Shotlog.pop(0) # 要素数の0
+                self.Shotlog.append(0) # 値の0
 
     # 射撃の戦術アルゴリズム
     def ShotStrategy(self, target):
@@ -593,12 +598,8 @@ class Enemy(Tank):
         # シミュレーションを行う
         result_direct = self.MoveSimulation(Cannon("cannon.png", shot_x, shot_y, self.CannonSpeed, dx, dy))
         if type(result_direct[0]) is Player:  # シミュレーションした結果、プレイヤーに当たる時
-            self.Shotlog.pop(0) # 要素数の0
-            self.Shotlog.append(1) # 値の1
             return True
         else:
-            self.Shotlog.pop(0)
-            self.Shotlog.append(0)
             return False
         """
 
@@ -843,9 +844,9 @@ class Enemy(Tank):
             wt_x = self.x - w.x  # 戦車と壁とのx、yの直線距離
             wt_y = self.y - w.y
             if abs(wt_x) >= abs(wt_y):  # 戦車と壁がx、y方向でどちらが大きく離れてるか(離れてる方向が壁と接触してる)
-                dx = int(math.copysign(self.v, wt_x))
+                dx = math.copysign(self.v, wt_x)
             else:
-                dy = int(math.copysign(self.v, wt_y))
+                dy = math.copysign(self.v, wt_y)
             return dx, dy, GetDistance(self.x, self.y, w.x, w.y) / 45
         else:
             return -1, -1, -1

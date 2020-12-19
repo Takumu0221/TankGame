@@ -29,9 +29,9 @@ def Enemy_pos_res():
 
 # 敵戦車移動に関するウェイト(0→移動に影響しない)
 AD = 4  # 味方との距離の重視度合い(AIDistance)
-ED = 1  # 敵との距離の重視度合い(EnemyDistance)
-WD = 2  # 壁との距離の重視度合い(WallsDistance)
-AC = 8  # 弾丸回避の重要度合い(AvoidingCannon)
+ED = 5  # 敵との距離の重視度合い(EnemyDistance)
+WD = 6  # 壁との距離の重視度合い(WallsDistance)
+AC = 7  # 弾丸回避の重要度合い(AvoidingCannon)
 # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
 GD = 305
 GD_origin = GD
@@ -393,7 +393,8 @@ class Enemy(Tank):
 
     ###################### プレイヤーとの距離感に対するバネの力の方向 ##################
     def Sense_of_Distance(self):
-        distance = GetDistance(player.sprite.x, player.sprite.y, self.x, self.y)
+        # distance = GetDistance(player.sprite.x, player.sprite.y, self.x, self.y)
+        distance = GetPathDistance(self.rect.center, player.sprite.rect.center)
         change = distance - GD * (1 - self.Shotlog.count(0) / 20)
         if change > 0:
             return 1
@@ -856,11 +857,11 @@ class Enemy(Tank):
         else:
             return -1, -1, -1
 
-    def GetPathDistance(self, P0, P1):
-        # 与えられた座標がどのブロックに該当するかを計算
-        # distance_matrixを用いて経路長を計算（参照する）
-        # 経路長（ブロック数×40）と（できれば）ブロックの中心からの距離を足して返す
-
+    # target（座標）までの経路的な距離が近くなるような方向を求める
+    def GetPathVelocity(self, target):
+        # 自分とtargetがどのブロックに該当するかを計算
+        # 自分の周囲のブロックを検査し，最も経路的な距離が短くなるようなブロックを求める
+        # 求めたブロックへの方向ベクトルを計算
         return self
 
 
@@ -958,6 +959,25 @@ def GetDistance(x1, y1, x2, y2):
 # 角度から縦・横方向成分を求める
 def GetVelocity(r, v):
     return math.cos(r) * math.sqrt(v), math.sin(r) * math.sqrt(v)
+
+
+# 2点間の経路的な距離を求める
+def GetPathDistance(P0, P1):
+    # 与えられた座標がどのブロックに該当するかを計算
+    P0_block = [int(x / Map.m_size) for x in P0]
+    P1_block = [int(x / Map.m_size) for x in P1]
+
+    # distance_matrixを用いて経路長を計算（参照する）
+    map_shape = np.array(Map.map).shape
+    distance_block = distance_matrix[map_shape[1] * P0_block[1] + P0_block[0]][
+        map_shape[1] * P1_block[1] + P1_block[0]]
+
+    # 経路長（ブロック数×40）と（できれば）ブロックの中心からの距離を足して返す
+    distance = distance_block * Map.m_size + \
+               GetDistance(P0[0], P0[1], (P0_block[0] + 0.5) * Map.m_size, (P0_block[1] + 0.5) * Map.m_size) + \
+               GetDistance(P1[0], P1[1], (P1_block[0] + 0.5) * Map.m_size, (P1_block[1] + 0.5) * Map.m_size)
+
+    return distance
 
 
 # 線分の交点を求める
@@ -1138,21 +1158,21 @@ def UpdateFalseImage():
 def MakeDistanceMatrix():
     m = Map.map  # マップデータ
 
-    map_size = np.array(m).size
-    map_shape = np.array(m).shape
+    map_size = np.array(m).size  # マップサイズ（ブロック数）
+    map_shape = np.array(m).shape  # マップの形（ブロック数）
 
-    adjacent = [[0 for _ in range(map_size)] for _ in range(map_size)]
+    adjacent = [[0 for _ in range(map_size)] for _ in range(map_size)]  # 隣接行列
 
     for i, xy in enumerate(itertools.product(range(map_shape[0]), range(map_shape[1]))):
         x, y = xy
         for delta in [(-1, 0), (0, 1), (1, 0), (0, -1)]:
             nx = x + delta[0]
             ny = y + delta[1]
-            if 0 <= nx < map_shape[0] and 0 <= ny < map_shape[1]:
-                if m[x][y] == 0 and m[nx][ny] == 0:
-                    adjacent[15 * x + y][15 * nx + ny] = 1
+            if 0 <= nx < map_shape[0] and 0 <= ny < map_shape[1]:  # 隣接ブロックがマップ外でないとき
+                if m[x][y] == 0 and m[nx][ny] == 0:  # 隣接ブロックが壁でないとき
+                    adjacent[map_shape[1] * x + y][map_shape[1] * nx + ny] = 1
 
-    # print(shortest_path(np.array(adjacent))[150])
+    # print("size " + str(np.array(shortest_path(np.array(adjacent))).shape))
     return shortest_path(np.array(adjacent))
 
 
@@ -1213,6 +1233,7 @@ def main():
     MakeWalls(m)  # 壁を生成
     MakeFalseImage()  # 虚像オブジェクトの生成
 
+    global distance_matrix  # 経路的な距離行列
     distance_matrix = MakeDistanceMatrix()  # 距離行列の作成
 
     # 敵戦車のウェイトを表示

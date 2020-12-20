@@ -427,6 +427,7 @@ class Enemy(Tank):
         dev = math.sqrt(dx ** 2 + dy ** 2)
         dx = dx / dev
         dy = dy / dev
+        dx, dy = self.GetPathVelocity(player.sprite)
         # 重みの導出 (プレイヤーの現在地-心地よい距離GD)*ED
         weight = ED * self.Sense_of_Distance()
         # 移動先を決定する行列に追加
@@ -859,10 +860,25 @@ class Enemy(Tank):
 
     # target（座標）までの経路的な距離が近くなるような方向を求める
     def GetPathVelocity(self, target):
-        # 自分とtargetがどのブロックに該当するかを計算
         # 自分の周囲のブロックを検査し，最も経路的な距離が短くなるようなブロックを求める
+        result = [GetPathDistance(self.rect.center, target.rect.center), self.rect.center]  # 経路的な距離・座標
+        m = Map.m_size
+        for delta in [(-m, 0), (0, m), (m, 0), (0, -m)]:
+            x = self.rect.centerx + delta[0]
+            y = self.rect.centery + delta[1]
+            dis = GetPathDistance([x, y], target.rect.center)
+
+            if result[0] > dis != math.inf:  # 現在地よりも経路的な距離が短い場合
+                result = [dis, [x, y]]
+
         # 求めたブロックへの方向ベクトルを計算
-        return self
+        dx = (result[1][0] - self.rect.centerx) / m
+        dy = (result[1][1] - self.rect.centery) / m
+
+        if dx == 0 and dy == 0:  # 現在地が経路的な距離が最も近い
+            return 0, 0
+        else:  # 経路的な距離が短くなるような方向ベクトルを返す
+            return dx, dy
 
 
 # 砲弾

@@ -41,10 +41,12 @@ GD_origin = GD
 RFD = 200
 RFD_origin = RFD
 
-#レベル設定用グローバル変数
+# レベル設定用グローバル変数
+Level = 0
 AD_level = 0  # 味方との距離の重視度合い(AIDistance)
 ED_level = 0  # 敵との距離の重視度合い(EnemyDistance)
 WD_level = 0  # 壁との距離の重視度合い(WallsDistance)
+
 
 # マップ
 class Map:
@@ -354,7 +356,7 @@ class Enemy(Tank):
         global Level
         if all_object.has(player.sprite):
             # 砲弾の発射
-            if Level==1:
+            if Level == 1:
                 self.Shot_basic()
             else:
                 self.Shot()
@@ -514,7 +516,8 @@ class Enemy(Tank):
 
         if self.frames > 200:  # 2秒ごとにプレイヤー方向に射撃
             self.frames = 0
-            rad = GetCannonAngle(player.sprite.rect.centerx,player.sprite.rect.centery,self.rect.centerx,self.rect.centery)  # 射撃する角度を求める
+            rad = GetCannonAngle(player.sprite.rect.centerx, player.sprite.rect.centery, self.rect.centerx,
+                                 self.rect.centery)  # 射撃する角度を求める
 
             # 指定された方向に撃つ
             if rad:
@@ -1133,8 +1136,8 @@ def UpdateWeight():
     global WD_level  # 壁との距離の重視度合い(WallsDistance)
 
     AD = AD_level
-    ED = max(0,ED_level - Remaining)
-    WD = max(0,WD_level - Remaining)
+    ED = max(0, ED_level - Remaining)
+    WD = max(0, WD_level - Remaining)
     AC = 8
     GD = GD_origin * (1 - ((5 - Remaining) / 10))
     RFD = RFD_origin * (1 - ((5 - Remaining) / 10))
@@ -1342,20 +1345,20 @@ def main():
                     sys.exit()
 
     pygame.time.wait(300)
-    #レベル設定(最強:3, 協調抜き:2, ベーシック:1)
+    # レベル設定(最強:3, 協調抜き:2, ベーシック:1)
     global Level
     Level = 1
 
-    #レベルに応じたWeightの変更
+    # レベルに応じたWeightの変更
     global AD_level  # 味方との距離の重視度合い(AIDistance)
     global ED_level  # 敵との距離の重視度合い(EnemyDistance)
     global WD_level  # 壁との距離の重視度合い(WallsDistance)
 
-    if Level==3:
+    if Level == 3:
         AD_level = 1
         ED_level = 6
         WD_level = 7
-    elif Level==2:
+    elif Level == 2:
         AD_level = 0
         ED_level = 6
         WD_level = 7
@@ -1364,6 +1367,7 @@ def main():
         ED_level = 0
         WD_level = 0
 
+    start = pygame.time.get_ticks()  # 開始時間を記録
 
     while 1:
         pygame.time.wait(10)  # 更新時間間隔
@@ -1396,8 +1400,8 @@ def main():
         if FinishFlag and TimeFlag:
             finish = pygame.time.get_ticks()
             dt = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-            with open("{}.txt".format(dt),'w') as f:
-                print((finish - start)/1000,file=f)
+            with open("{}.txt".format(dt), 'w') as f:
+                print((finish - start) / 1000, file=f)
             TimeFlag = False
 
         pygame.display.update()  # 画面更新

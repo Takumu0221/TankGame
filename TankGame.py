@@ -38,21 +38,21 @@ RFD_origin = RFD
 # マップ
 class Map:
     # マップデータ
-    map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-           [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
+    map = [[7, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 2, 2, 4, 2, 8],
+           [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
+           [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
+           [6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6],
+           [6, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6],
+           [5, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
+           [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 5],
+           [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 6],
+           [6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 6],
+           [6, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6],
+           [6, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
+           [6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9],
+           [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7],
+           [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
+           [9, 2, 2, 3, 3, 3, 2, 2, 2, 8, 7, 3, 3, 2, 2, 4, 2, 2, 8, 9]]
     row, col = len(map), len(map[0])  # マップの行数,列数を取得
     images = [None] * 256  # マップチップ
     m_size = 40  # 1マスの画像サイズ
@@ -319,6 +319,7 @@ class Player(Tank):
                                            self.x + 0.5 * self.rect.width, self.y + 0.5 * self.rect.height)
         # 射撃口の描画
         self.DrawGun()
+        pygame.draw.circle(screen, (108,134,79), (int(self.x)+20,int(self.y)+20), 16)
 
     def Shot(self):
         # マウスクリックで砲弾発射
@@ -365,6 +366,7 @@ class Enemy(Tank):
 
         # 射撃口の描画
         self.DrawGun()
+        pygame.draw.circle(screen, (112,78,125), (int(self.x)+20,int(self.y)+20), 16)
 
     ###################### ある戦車に対する各敵戦車間の斥力をリストに追加 ###############
     def RepilsiveForce(self):
@@ -996,11 +998,26 @@ def Aliving():
 def MakeWalls(m):
     for i in range(m.row):
         for j in range(m.col):
-            if m.map[i][j]:
-                if 0 < i < m.row - 1 and 0 < j < m.col - 1:
+            if m.map[i][j]>0:
+                if m.map[i][j] ==1 and 0 < i < m.row - 1 and 0 < j < m.col - 1:
                     InnerWall("wall.png", j * m.m_size, i * m.m_size)
                 else:
-                    OuterWall("wall.png", j * m.m_size, i * m.m_size)
+                    if m.map[i][j] == 2:
+                        OuterWall("wall(W).png", j * m.m_size, i * m.m_size)
+                    elif m.map[i][j] == 3:
+                        OuterWall("wall(W-T).png", j * m.m_size, i * m.m_size)
+                    elif m.map[i][j] == 4:
+                        OuterWall("wall(W-S).png", j * m.m_size, i * m.m_size)
+                    elif m.map[i][j] == 5:
+                        OuterWall("wall(H).png", j * m.m_size, i * m.m_size)
+                    elif m.map[i][j] == 6:
+                        OuterWall("wall(H-T).png", j * m.m_size, i * m.m_size)
+                    elif m.map[i][j] == 7:
+                        OuterWall("wall(L-U).png", j * m.m_size, i * m.m_size)
+                    elif m.map[i][j] == 8:
+                        OuterWall("wall(R-U).png", j * m.m_size, i * m.m_size)
+                    elif m.map[i][j] == 9:
+                        OuterWall("wall(L-D).png", j * m.m_size, i * m.m_size)
 
 
 # worldのコピー
@@ -1199,12 +1216,22 @@ def main():
     screen.blit(text_move, (w / 4 + 10, 3 * h / 4))
     pygame.display.update()
 
+    #スタート画面でEnterの入力を待機
+    DrawTiles(m)
+    all_object.draw(screen)  # すべて描写
+    img_start = pygame.image.load("Start_menu.png")
+    screen.blit(img_start,(100,100))
+    font_start = pygame.font.SysFont("None",50)
+    text_start = font_start.render(">> START <<", True, (255,255,255))
+    screen.blit(text_start, (280,400))
+    pygame.display.update() #描画処理を実行
+
     ReadyFlag = True
     while ReadyFlag:
-        pygame.time.wait(10)
         for event in pygame.event.get():
             if event.type == MOUSEBUTTONDOWN and event.button == 1:
                 ReadyFlag = False
+            # 終了用のイベント処理
             if event.type == QUIT:  # 閉じるボタンが押されたとき
                 pygame.quit()
                 sys.exit()
@@ -1213,8 +1240,6 @@ def main():
                     pygame.quit()
                     sys.exit()
 
-    DrawTiles(m)
-    pygame.display.update()
     pygame.time.wait(300)
 
     while 1:

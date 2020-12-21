@@ -865,7 +865,7 @@ class Enemy(Tank):
         # 自分の周囲のブロックを検査し，最も経路的な距離が短くなるようなブロックを求める
         result = [GetPathDistance(self.rect.center, target.rect.center), self.rect.center]  # 経路的な距離・座標
         m = Map.m_size
-        for delta in [(-m, 0), (0, m), (m, 0), (0, -m)]:
+        for delta in [(-m, 0), (0, m), (m, 0), (0, -m), (-m, -m), (m, m), (-m, m), (m, -m)]:
             x = self.rect.centerx + delta[0]
             y = self.rect.centery + delta[1]
             dis = GetPathDistance([x, y], target.rect.center)

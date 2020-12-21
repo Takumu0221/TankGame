@@ -35,17 +35,21 @@ ED = 5  # 敵との距離の重視度合い(EnemyDistance)
 WD = 6  # 壁との距離の重視度合い(WallsDistance)
 AC = 7  # 弾丸回避の重要度合い(AvoidingCannon)
 # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
-GD = 305
+GD = 350
 GD_origin = GD
 # 斥力が働き合う距離(RepulsiveForceDistance)
-RFD = 450
+RFD = 200
 RFD_origin = RFD
 
+#レベル設定用グローバル変数
+AD_level = 0  # 味方との距離の重視度合い(AIDistance)
+ED_level = 0  # 敵との距離の重視度合い(EnemyDistance)
+WD_level = 0  # 壁との距離の重視度合い(WallsDistance)
 
 # マップ
 class Map:
     # マップデータ
-    with open("map/map03.csv") as f:
+    with open("map/map01.csv") as f:
         reader = csv.reader(f)
         map = [[int(x) for x in row] for row in reader]
     print(map)
@@ -347,9 +351,13 @@ class Enemy(Tank):
         self.Shotlog = [1] * 10
 
     def update(self):
+        global Level
         if all_object.has(player.sprite):
             # 砲弾の発射
-            self.Shot()
+            if Level==1:
+                self.Shot_basic()
+            else:
+                self.Shot()
             # 砲弾の整理
             self.AdjustCannonList()
 
@@ -379,7 +387,7 @@ class Enemy(Tank):
                     dy = dy / dev
                     # 斥力が働くか否かを判定(斥力が働く範囲に入っているか)
                     distance = GetDistance(Enemy_pos[2 * i], Enemy_pos[(2 * i) + 1], self.x, self.y)
-                    change = distance - RFD
+                    change = distance - RFD * (1 - self.Shotlog.count(0) / 20)
                     if change < 0:
                         weight = (-1) * AD
                         # 発生する斥力をリストに追加
@@ -495,7 +503,30 @@ class Enemy(Tank):
                 dx, dy = GetVelocity(rad, self.CannonSpeed)  # 砲弾の速度（x方向・y方向）を求める
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
-                    self.CannonList.append(Cannon("images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+                    self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+            else:
+                self.Shotlog.pop(0)  # 要素数の0
+                self.Shotlog.append(0)  # 値の0
+
+    # 射撃の管理(ベーシック)
+    def Shot_basic(self):
+        self.frames += 1
+
+        if self.frames > 200:  # 2秒ごとにプレイヤー方向に射撃
+            self.frames = 0
+            rad = GetCannonAngle(player.sprite.rect.centerx,player.sprite.rect.centery,self.rect.centerx,self.rect.centery)  # 射撃する角度を求める
+
+            # 指定された方向に撃つ
+            if rad:
+                self.Shotlog.pop(0)  # 要素数の0
+                self.Shotlog.append(1)  # 値の1
+                self.GunDirection = rad  # 射撃口の向きを更新
+                self.shot_x, self.shot_y = self.GetShotPoint(rad)  # 射撃ポイントを求める
+
+                dx, dy = GetVelocity(rad, self.CannonSpeed)  # 砲弾の速度（x方向・y方向）を求める
+
+                if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
+                    self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
             else:
                 self.Shotlog.pop(0)  # 要素数の0
                 self.Shotlog.append(0)  # 値の0
@@ -1097,9 +1128,13 @@ def UpdateWeight():
     global GD  # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
     global RFD  # 斥力が働き合う距離(RepulsiveForceDistance)
 
-    AD = 1
-    ED = 6 - Remaining
-    WD = 7 - Remaining
+    global AD_level  # 味方との距離の重視度合い(AIDistance)
+    global ED_level  # 敵との距離の重視度合い(EnemyDistance)
+    global WD_level  # 壁との距離の重視度合い(WallsDistance)
+
+    AD = AD_level
+    ED = max(0,ED_level - Remaining)
+    WD = max(0,WD_level - Remaining)
     AC = 8
     GD = GD_origin * (1 - ((5 - Remaining) / 10))
     RFD = RFD_origin * (1 - ((5 - Remaining) / 10))
@@ -1307,7 +1342,28 @@ def main():
                     sys.exit()
 
     pygame.time.wait(300)
-    start = pygame.time.get_ticks()
+    #レベル設定(最強:3, 協調抜き:2, ベーシック:1)
+    global Level
+    Level = 1
+
+    #レベルに応じたWeightの変更
+    global AD_level  # 味方との距離の重視度合い(AIDistance)
+    global ED_level  # 敵との距離の重視度合い(EnemyDistance)
+    global WD_level  # 壁との距離の重視度合い(WallsDistance)
+
+    if Level==3:
+        AD_level = 1
+        ED_level = 6
+        WD_level = 7
+    elif Level==2:
+        AD_level = 0
+        ED_level = 6
+        WD_level = 7
+    else:
+        AD_level = 0
+        ED_level = 0
+        WD_level = 0
+
 
     while 1:
         pygame.time.wait(10)  # 更新時間間隔

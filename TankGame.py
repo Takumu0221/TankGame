@@ -8,6 +8,7 @@ import random
 import numpy as np
 from scipy.sparse.csgraph import shortest_path
 import itertools
+import csv
 
 (w, h) = (800, 600)  # 画面サイズ
 
@@ -43,21 +44,11 @@ RFD_origin = RFD
 # マップ
 class Map:
     # マップデータ
-    map = [[7, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 2, 2, 4, 2, 8],
-           [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
-           [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
-           [6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6],
-           [6, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 6],
-           [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
-           [5, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 5],
-           [5, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 6],
-           [6, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 6],
-           [6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6],
-           [6, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 5],
-           [6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9],
-           [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7],
-           [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
-           [9, 2, 2, 3, 3, 3, 2, 2, 2, 8, 7, 3, 3, 2, 2, 4, 2, 2, 8, 9]]
+    with open("map/map03.csv") as f:
+        reader = csv.reader(f)
+        map = [[int(x) for x in row] for row in reader]
+    print(map)
+
     row, col = len(map), len(map[0])  # マップの行数,列数を取得
     images = [None] * 256  # マップチップ
     m_size = 40  # 1マスの画像サイズ
@@ -236,10 +227,10 @@ class Tank(MovingObject):
 
     def __init__(self, filename, x, y, v):
         super().__init__(filename, x, y, v)
-        self.CannonList = []  # 砲弾のリスト
+        self.CannonList = []  # 砲弾のリスト             
         # 射撃砲台の長さを求める
-        self.radius = GetDistance(self.x, self.y, self.x + 0.5 * (self.rect.width + self.CannonW),
-                                  self.y + 0.5 * (self.rect.height + self.CannonH))
+        self.radius = GetDistance(self.x, self.y, self.x + 0.6 * (self.rect.width + self.CannonW),
+                                  self.y + 0.6 * (self.rect.height + self.CannonH))
         self.GunDirection = 0  # 射撃口の向き
         self.shot_x = self.x + 0.5 * (self.rect.width - self.CannonW) - self.radius * math.cos(
             math.pi * 0.5)  # 射撃位置のx座標
@@ -333,7 +324,7 @@ class Player(Tank):
         dx, dy = GetVelocity(rad, self.CannonSpeed)
         # 戦車に追加
         if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
-            self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+            self.CannonList.append(Cannon("images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
 
 
 # 敵戦車
@@ -503,7 +494,7 @@ class Enemy(Tank):
                 dx, dy = GetVelocity(rad, self.CannonSpeed)  # 砲弾の速度（x方向・y方向）を求める
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
-                    self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+                    self.CannonList.append(Cannon("images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
             else:
                 self.Shotlog.pop(0)  # 要素数の0
                 self.Shotlog.append(0)  # 値の0
@@ -671,7 +662,7 @@ class Enemy(Tank):
 
         else:  # 対象の他に消滅した物体が無ければ壁と衝突したと判定
             # 消滅した地点から最も近い壁を返す
-            result = Wall("wall.png", -1, -1)
+            result = Wall("images/wall.png", -1, -1)
             result.kill()
             for wall in walls.sprites():
                 if GetDistance(result.rect.centerx, result.rect.centery, x, y) \
@@ -720,7 +711,7 @@ class Enemy(Tank):
         width = player.sprite.rect.width / 2
         height = player.sprite.rect.height / 2
         Player.containers = all_object
-        p = Player("tank_0.png", x - width, y - height, 1)
+        p = Player("images/tank_0.png", x - width, y - height, 1)
         Player.containers = all_object, player
 
         # 自分からn方向への直線を得る（始点と終点で定義）（終点は始点からw×2先の点）
@@ -1048,24 +1039,24 @@ def MakeWalls(m):
         for j in range(m.col):
             if m.map[i][j] > 0:
                 if m.map[i][j] == 1 and 0 < i < m.row - 1 and 0 < j < m.col - 1:
-                    InnerWall("wall.png", j * m.m_size, i * m.m_size)
+                    InnerWall("images/wall.png", j * m.m_size, i * m.m_size)
                 else:
                     if m.map[i][j] == 2:
-                        OuterWall("wall(W).png", j * m.m_size, i * m.m_size)
+                        OuterWall("images/wall(W).png", j * m.m_size, i * m.m_size)
                     elif m.map[i][j] == 3:
-                        OuterWall("wall(W-T).png", j * m.m_size, i * m.m_size)
+                        OuterWall("images/wall(W-T).png", j * m.m_size, i * m.m_size)
                     elif m.map[i][j] == 4:
-                        OuterWall("wall(W-S).png", j * m.m_size, i * m.m_size)
+                        OuterWall("images/wall(W-S).png", j * m.m_size, i * m.m_size)
                     elif m.map[i][j] == 5:
-                        OuterWall("wall(H).png", j * m.m_size, i * m.m_size)
+                        OuterWall("images/wall(H).png", j * m.m_size, i * m.m_size)
                     elif m.map[i][j] == 6:
-                        OuterWall("wall(H-T).png", j * m.m_size, i * m.m_size)
+                        OuterWall("images/wall(H-T).png", j * m.m_size, i * m.m_size)
                     elif m.map[i][j] == 7:
-                        OuterWall("wall(L-U).png", j * m.m_size, i * m.m_size)
+                        OuterWall("images/wall(L-U).png", j * m.m_size, i * m.m_size)
                     elif m.map[i][j] == 8:
-                        OuterWall("wall(R-U).png", j * m.m_size, i * m.m_size)
+                        OuterWall("images/wall(R-U).png", j * m.m_size, i * m.m_size)
                     elif m.map[i][j] == 9:
-                        OuterWall("wall(L-D).png", j * m.m_size, i * m.m_size)
+                        OuterWall("images/wall(L-D).png", j * m.m_size, i * m.m_size)
 
 
 # worldのコピー
@@ -1077,16 +1068,16 @@ def CopyWorld():
     for o in all_object:
         if type(o) is Player:
             Player.containers = all_object
-            new_object = Player("tank_0.png", o.x, o.y, o.v)
+            new_object = Player("images/tank_0.png", o.x, o.y, o.v)
             Player.containers = all_object, player
         elif type(o) is Enemy:
-            new_object = Enemy("tank_1.png", o.x, o.y, o.v, o.dx, o.dy, o.firetime, 0)
+            new_object = Enemy("images/tank_1.png", o.x, o.y, o.v, o.dx, o.dy, o.firetime, 0)
         elif type(o) is InnerWall:
             new_object = InnerWall(o.filename, o.x, o.y)
         elif type(o) is OuterWall:
             new_object = OuterWall(o.filename, o.x, o.y)
         else:
-            new_object = Cannon("cannon.png", o.x, o.y, o.v, o.dx, o.dy)
+            new_object = Cannon("images/cannon.png", o.x, o.y, o.v, o.dx, o.dy)
 
         if new_object:
             new_object.kill()
@@ -1137,11 +1128,11 @@ def MakeFalseImage():
                 # オブジェクトごとに虚像を作成
                 if type(o) is Player:
                     Player.containers = all_object
-                    new_object = Player("tank_0.png", x, y, o.v)
+                    new_object = Player("images/tank_0.png", x, y, o.v)
                     Player.containers = all_object, player
                     new_object.kill()
                 elif type(o) is Enemy:
-                    new_object = Enemy("tank_1.png", x, y, o.v, o.dx, o.dy, o.firetime, 0)
+                    new_object = Enemy("images/tank_1.png", x, y, o.v, o.dx, o.dy, o.firetime, 0)
                     new_object.kill()
                 else:
                     new_object = InnerWall(o.filename, x, y)
@@ -1252,16 +1243,16 @@ def main():
 
     # 戦車の準備
     global y_target, x_target
-    Player("tank_0.png", w / 4, h / 2, 1.0)
+    Player("images/tank_0.png", w / 4, h / 2, 1.0)
 
     for i in range(1, Enemy_num + 1):
-        Enemy("tank_1.png", w * 3 / 4, h * i / (Enemy_num + 1), 0.7, 0, 0, time.time(), i - 1)
+        Enemy("images/tank_1.png", w * 3 / 4, h * i / (Enemy_num + 1), 0.7, 0, 0, time.time(), i - 1)
         Enemy_pos[2 * (i - 1)] = w * 3 / 4
         Enemy_pos[2 * (i - 1) + 1] = h * i / (Enemy_num + 1)
 
     # オブジェクト生成
-    Map.images[0] = load_img("tile.png")  # 地面
-    Map.images[1] = load_img("wall.png")  # 壁
+    Map.images[0] = load_img("images/tile.png")  # 地面
+    Map.images[1] = load_img("images/wall.png")  # 壁
     m = Map()
     MakeWalls(m)  # 壁を生成
     MakeFalseImage()  # 虚像オブジェクトの生成
@@ -1292,7 +1283,7 @@ def main():
     # スタート画面でEnterの入力を待機
     DrawTiles(m)
     all_object.draw(screen)  # すべて描写
-    img_start = pygame.image.load("Start_menu.png")
+    img_start = pygame.image.load("images/Start_menu.png")
     screen.blit(img_start, (100, 100))
     font_start = pygame.font.SysFont("None", 50)
     text_start = font_start.render(">> START <<", True, (255, 255, 255))

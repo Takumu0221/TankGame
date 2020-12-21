@@ -1240,6 +1240,7 @@ OuterWall.containers = all_object, walls, outerwalls
 def main():
     # 終了フラグ
     FinishFlag = False
+    TimeFlag = True
 
     # 戦車の準備
     global y_target, x_target
@@ -1261,7 +1262,7 @@ def main():
     distance_matrix = MakeDistanceMatrix()  # 距離行列の作成
 
     # 敵戦車のウェイトを表示
-    print('Weight of Allies Distance:')
+    """print('Weight of Allies Distance:')
     print(AD)
     print('Weight of Enemy  Distance:')
     print(ED)
@@ -1272,7 +1273,7 @@ def main():
     print('Comfortable Distance:')
     print(GD)
     print('Repulsive Force Distance')
-    print(RFD)
+    print(RFD)"""
 
     # 準備画面
     screen.blit(text_ready, (w / 3, h / 4))
@@ -1305,6 +1306,7 @@ def main():
                     sys.exit()
 
     pygame.time.wait(300)
+    start = pygame.time.get_ticks()
 
     while 1:
         pygame.time.wait(10)  # 更新時間間隔
@@ -1333,6 +1335,13 @@ def main():
             player.sprite.DrawGun()
             screen.blit(text1, (w / 4, h / 4))
             FinishFlag = True
+
+        if FinishFlag and TimeFlag:
+            finish = pygame.time.get_ticks()
+            dt = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            with open("{}.txt".format(dt),'w') as f:
+                print((finish - start)/1000,file=f)
+            TimeFlag = False
 
         pygame.display.update()  # 画面更新
 

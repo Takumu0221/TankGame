@@ -504,7 +504,7 @@ class Enemy(Tank):
                 dx, dy = GetVelocity(rad, self.CannonSpeed)  # 砲弾の速度（x方向・y方向）を求める
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
-                    self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+                    self.CannonList.append(Cannon("images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
             else:
                 self.Shotlog.pop(0)  # 要素数の0
                 self.Shotlog.append(0)  # 値の0
@@ -528,7 +528,7 @@ class Enemy(Tank):
                 dx, dy = GetVelocity(rad, self.CannonSpeed)  # 砲弾の速度（x方向・y方向）を求める
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
-                    self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+                    self.CannonList.append(Cannon("images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
             else:
                 self.Shotlog.pop(0)  # 要素数の0
                 self.Shotlog.append(0)  # 値の0
@@ -1346,7 +1346,7 @@ def main():
     pygame.time.wait(300)
     # レベル設定(最強:3, 協調抜き:2, ベーシック:1)
     global Level
-    Level = 3
+    Level = 2
 
     # レベルに応じたWeightの変更
     global AD_level  # 味方との距離の重視度合い(AIDistance)

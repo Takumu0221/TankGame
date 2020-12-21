@@ -9,6 +9,7 @@ import numpy as np
 from scipy.sparse.csgraph import shortest_path
 import itertools
 import csv
+import datetime
 
 (w, h) = (800, 600)  # 画面サイズ
 

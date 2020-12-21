@@ -54,7 +54,6 @@ class Map:
     with open("map/map01.csv") as f:
         reader = csv.reader(f)
         map = [[int(x) for x in row] for row in reader]
-    print(map)
 
     row, col = len(map), len(map[0])  # マップの行数,列数を取得
     images = [None] * 256  # マップチップ
@@ -1347,7 +1346,7 @@ def main():
     pygame.time.wait(300)
     # レベル設定(最強:3, 協調抜き:2, ベーシック:1)
     global Level
-    Level = 1
+    Level = 3
 
     # レベルに応じたWeightの変更
     global AD_level  # 味方との距離の重視度合い(AIDistance)

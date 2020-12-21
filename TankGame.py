@@ -5,6 +5,9 @@ import math
 import sys
 import time
 import random
+import numpy as np
+from scipy.sparse.csgraph import shortest_path
+import itertools
 
 (w, h) = (800, 600)  # 画面サイズ
 
@@ -12,6 +15,8 @@ import random
 
 Enemy_num = 3  # 敵戦車の数
 Enemy_pos = [0] * (2 * Enemy_num)  # 各敵戦車の位置を記録するリスト
+
+distance_matrix = 0  # 経路的な距離行列
 
 
 # 敵戦車の位置を記録するリストの初期化(死んだ戦車の管理のため)
@@ -24,9 +29,9 @@ def Enemy_pos_res():
 
 # 敵戦車移動に関するウェイト(0→移動に影響しない)
 AD = 4  # 味方との距離の重視度合い(AIDistance)
-ED = 1  # 敵との距離の重視度合い(EnemyDistance)
-WD = 2  # 壁との距離の重視度合い(WallsDistance)
-AC = 8  # 弾丸回避の重要度合い(AvoidingCannon)
+ED = 5  # 敵との距離の重視度合い(EnemyDistance)
+WD = 6  # 壁との距離の重視度合い(WallsDistance)
+AC = 7  # 弾丸回避の重要度合い(AvoidingCannon)
 # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
 GD = 305
 GD_origin = GD
@@ -390,7 +395,8 @@ class Enemy(Tank):
 
     ###################### プレイヤーとの距離感に対するバネの力の方向 ##################
     def Sense_of_Distance(self):
-        distance = GetDistance(player.sprite.x, player.sprite.y, self.x, self.y)
+        # distance = GetDistance(player.sprite.x, player.sprite.y, self.x, self.y)
+        distance = GetPathDistance(self.rect.center, player.sprite.rect.center)
         change = distance - GD * (1 - self.Shotlog.count(0) / 20)
         if change > 0:
             return 1
@@ -423,6 +429,7 @@ class Enemy(Tank):
         dev = math.sqrt(dx ** 2 + dy ** 2)
         dx = dx / dev
         dy = dy / dev
+        dx, dy = self.GetPathVelocity(player.sprite)
         # 重みの導出 (プレイヤーの現在地-心地よい距離GD)*ED
         weight = ED * self.Sense_of_Distance()
         # 移動先を決定する行列に追加
@@ -488,8 +495,8 @@ class Enemy(Tank):
 
             # 指定された方向に撃つ
             if rad:
-                self.Shotlog.pop(0) # 要素数の0
-                self.Shotlog.append(1) # 値の1
+                self.Shotlog.pop(0)  # 要素数の0
+                self.Shotlog.append(1)  # 値の1
                 self.GunDirection = rad  # 射撃口の向きを更新
                 self.shot_x, self.shot_y = self.GetShotPoint(rad)  # 射撃ポイントを求める
 
@@ -498,8 +505,8 @@ class Enemy(Tank):
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
                     self.CannonList.append(Cannon("cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
             else:
-                self.Shotlog.pop(0) # 要素数の0
-                self.Shotlog.append(0) # 値の0
+                self.Shotlog.pop(0)  # 要素数の0
+                self.Shotlog.append(0)  # 値の0
 
     # 射撃の戦術アルゴリズム
     def ShotStrategy(self, target):
@@ -853,6 +860,28 @@ class Enemy(Tank):
         else:
             return -1, -1, -1
 
+    # target（座標）までの経路的な距離が近くなるような方向を求める
+    def GetPathVelocity(self, target):
+        # 自分の周囲のブロックを検査し，最も経路的な距離が短くなるようなブロックを求める
+        result = [GetPathDistance(self.rect.center, target.rect.center), self.rect.center]  # 経路的な距離・座標
+        m = Map.m_size
+        for delta in [(-m, 0), (0, m), (m, 0), (0, -m)]:
+            x = self.rect.centerx + delta[0]
+            y = self.rect.centery + delta[1]
+            dis = GetPathDistance([x, y], target.rect.center)
+
+            if result[0] > dis != math.inf:  # 現在地よりも経路的な距離が短い場合
+                result = [dis, [x, y]]
+
+        # 求めたブロックへの方向ベクトルを計算
+        dx = (result[1][0] - self.rect.centerx) / m
+        dy = (result[1][1] - self.rect.centery) / m
+
+        if dx == 0 and dy == 0:  # 現在地が経路的な距離が最も近い
+            return 0, 0
+        else:  # 経路的な距離が短くなるような方向ベクトルを返す
+            return dx, dy
+
 
 # 砲弾
 class Cannon(MovingObject):
@@ -948,6 +977,25 @@ def GetDistance(x1, y1, x2, y2):
 # 角度から縦・横方向成分を求める
 def GetVelocity(r, v):
     return math.cos(r) * math.sqrt(v), math.sin(r) * math.sqrt(v)
+
+
+# 2点間の経路的な距離を求める
+def GetPathDistance(P0, P1):
+    # 与えられた座標がどのブロックに該当するかを計算
+    P0_block = [int(x / Map.m_size) for x in P0]
+    P1_block = [int(x / Map.m_size) for x in P1]
+
+    # distance_matrixを用いて経路長を計算（参照する）
+    map_shape = np.array(Map.map).shape
+    distance_block = distance_matrix[map_shape[1] * P0_block[1] + P0_block[0]][
+        map_shape[1] * P1_block[1] + P1_block[0]]
+
+    # 経路長（ブロック数×40）と（できれば）ブロックの中心からの距離を足して返す
+    distance = distance_block * Map.m_size + \
+               GetDistance(P0[0], P0[1], (P0_block[0] + 0.5) * Map.m_size, (P0_block[1] + 0.5) * Map.m_size) + \
+               GetDistance(P1[0], P1[1], (P1_block[0] + 0.5) * Map.m_size, (P1_block[1] + 0.5) * Map.m_size)
+
+    return distance
 
 
 # 線分の交点を求める
@@ -1139,6 +1187,28 @@ def UpdateFalseImage():
                     1].rect.height * 0.5
 
 
+# 経路的な距離行列の作成
+def MakeDistanceMatrix():
+    m = Map.map  # マップデータ
+
+    map_size = np.array(m).size  # マップサイズ（ブロック数）
+    map_shape = np.array(m).shape  # マップの形（ブロック数）
+
+    adjacent = [[0 for _ in range(map_size)] for _ in range(map_size)]  # 隣接行列
+
+    for i, xy in enumerate(itertools.product(range(map_shape[0]), range(map_shape[1]))):
+        x, y = xy
+        for delta in [(-1, 0), (0, 1), (1, 0), (0, -1)]:
+            nx = x + delta[0]
+            ny = y + delta[1]
+            if 0 <= nx < map_shape[0] and 0 <= ny < map_shape[1]:  # 隣接ブロックがマップ外でないとき
+                if m[x][y] == 0 and m[nx][ny] == 0:  # 隣接ブロックが壁でないとき
+                    adjacent[map_shape[1] * x + y][map_shape[1] * nx + ny] = 1
+
+    # print("size " + str(np.array(shortest_path(np.array(adjacent))).shape))
+    return shortest_path(np.array(adjacent))
+
+
 # pygameの準備
 pygame.init()  # pygame初期化
 pygame.display.set_mode((w, h), 0, 32)  # 画面設定
@@ -1195,6 +1265,9 @@ def main():
     m = Map()
     MakeWalls(m)  # 壁を生成
     MakeFalseImage()  # 虚像オブジェクトの生成
+
+    global distance_matrix  # 経路的な距離行列
+    distance_matrix = MakeDistanceMatrix()  # 距離行列の作成
 
     # 敵戦車のウェイトを表示
     print('Weight of Allies Distance:')

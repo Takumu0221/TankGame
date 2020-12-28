@@ -358,7 +358,8 @@ class Enemy(Tank):
             if Level == 1:
                 self.Shot_basic()
             else:
-                self.Shot()
+                if not Level == 0:
+                    self.Shot()
             # 砲弾の整理
             self.AdjustCannonList()
 
@@ -504,7 +505,8 @@ class Enemy(Tank):
                 dx, dy = GetVelocity(rad, self.CannonSpeed)  # 砲弾の速度（x方向・y方向）を求める
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
-                    self.CannonList.append(Cannon("images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+                    self.CannonList.append(
+                        Cannon("images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
             else:
                 self.Shotlog.pop(0)  # 要素数の0
                 self.Shotlog.append(0)  # 値の0
@@ -528,7 +530,8 @@ class Enemy(Tank):
                 dx, dy = GetVelocity(rad, self.CannonSpeed)  # 砲弾の速度（x方向・y方向）を求める
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
-                    self.CannonList.append(Cannon("images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+                    self.CannonList.append(
+                        Cannon("images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
             else:
                 self.Shotlog.pop(0)  # 要素数の0
                 self.Shotlog.append(0)  # 値の0
@@ -1312,21 +1315,47 @@ def main():
     screen.blit(text_move, (w / 4 + 10, 3 * h / 4))
     pygame.display.update()
 
-    # スタート画面でEnterの入力を待機
+    # スタート画面でキー入力を待機
     DrawTiles(m)
     all_object.draw(screen)  # すべて描写
     img_start = pygame.image.load("images/Start_menu.png")
     screen.blit(img_start, (100, 100))
+    font_start = pygame.font.SysFont("None", 30)
+    text_start = font_start.render("User Guide", True, (255, 255, 255))
+    img_how = pygame.image.load("images/how_con.png")
+    screen.blit(img_how, (200, 400))
+    screen.blit(text_start, (200, 360))
     font_start = pygame.font.SysFont("None", 50)
-    text_start = font_start.render(">> START <<", True, (255, 255, 255))
-    screen.blit(text_start, (280, 400))
+    text_start1 = font_start.render("1: Level 1", True, (255, 255, 255))
+    text_start2 = font_start.render("2: Level 2", True, (255, 255, 255))
+    text_start3 = font_start.render("3: Level 3", True, (255, 255, 255))
+    screen.blit(text_start1, (450, 360))
+    screen.blit(text_start2, (450, 400))
+    screen.blit(text_start3, (450, 440))
     pygame.display.update()  # 描画処理を実行
 
     ReadyFlag = True
+
+    # レベル設定(最強:3, 協調抜き:2, ベーシック:1)
+    global Level
+    Level = 1
     while ReadyFlag:
         for event in pygame.event.get():
-            if event.type == MOUSEBUTTONDOWN and event.button == 1:
-                ReadyFlag = False
+            if event.type == pygame.KEYDOWN:
+                pressed_key = pygame.key.get_pressed()
+                if pressed_key[pygame.K_0]:
+                    Level = 0
+                    ReadyFlag = False
+                if pressed_key[pygame.K_1]:
+                    Level = 1
+                    ReadyFlag = False
+                if pressed_key[pygame.K_2]:
+                    Level = 2
+                    ReadyFlag = False
+                if pressed_key[pygame.K_3]:
+                    Level = 3
+                    ReadyFlag = False
+
             # 終了用のイベント処理
             if event.type == QUIT:  # 閉じるボタンが押されたとき
                 pygame.quit()
@@ -1337,9 +1366,6 @@ def main():
                     sys.exit()
 
     pygame.time.wait(300)
-    # レベル設定(最強:3, 協調抜き:2, ベーシック:1)
-    global Level
-    Level = 2
 
     # レベルに応じたWeightの変更
     global AD_level  # 味方との距離の重視度合い(AIDistance)

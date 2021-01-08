@@ -51,7 +51,7 @@ WD_level = 0  # 壁との距離の重視度合い(WallsDistance)
 # マップ
 class Map:
     # マップデータ
-    with open("map/map03.csv") as f:
+    with open("map/map01.csv") as f:
         reader = csv.reader(f)
         map = [[int(x) for x in row] for row in reader]
 

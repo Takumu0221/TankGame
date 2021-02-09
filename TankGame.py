@@ -56,7 +56,7 @@ WD_level = 0  # 壁との距離の重視度合い(WallsDistance)
 # マップ
 class Map:
     # マップデータ
-    with open("map/map02.csv") as f:
+    with open("map/map01.csv") as f:
         reader = csv.reader(f)
         map = [[int(x) for x in row] for row in reader]
 
@@ -1731,12 +1731,16 @@ def UpdateWeight(enemies):
     global ED_level  # 敵との距離の重視度合い(EnemyDistance)
     global WD_level  # 壁との距離の重視度合い(WallsDistance)
 
-    AD = AD_level * Aliving(enemies)
-    ED = max(0, ED_level * Aliving(enemies) - Remaining)
-    WD = max(0, WD_level * Aliving(enemies) - Remaining)
-    AC = 30
-    GD = GD_origin * (1 - ((5 * Aliving(enemies) - Remaining) / (10 * Aliving(enemies))))
-    RFD = RFD_origin * (1 - ((5 * Aliving(enemies) - Remaining) / (10 * Aliving(enemies))))
+    AD = AD_level * Enemy_num
+    # ED = max(0, ED_level * Aliving(enemies) - Remaining)
+    ED = 4
+    # WD = max(0, WD_level * Enemy_num - Remaining)
+    WD = 5
+    AC = 7
+    # GD = GD_origin * (1 - ((5 * Aliving(enemies) - Remaining) / (10 * Aliving(enemies))))
+    GD = GD_origin
+    # RFD = RFD_origin * (1 - ((5 * Aliving(enemies) - Remaining) / (10 * Aliving(enemies))))
+    RFD = RFD_origin
 
 
 # 床の描画

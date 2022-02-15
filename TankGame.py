@@ -1418,7 +1418,7 @@ def main():
         if FinishFlag and TimeFlag:
             finish = pygame.time.get_ticks()
             dt = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-            with open("{}.txt".format(dt), 'w') as f:
+            with open("result/{}.txt".format(dt), 'w') as f:
                 print((finish - start) / 1000, file=f)
             TimeFlag = False
 

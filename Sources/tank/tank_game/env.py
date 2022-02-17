@@ -1,62 +1,29 @@
-# -*- coding: utf-8 -*-
-import pygame
-from pygame.locals import *
-import math
-import sys
-import time
-import random
-import numpy as np
-from scipy.sparse.csgraph import shortest_path
-import itertools
 import csv
-import datetime
 
-(w, h) = (800, 600)  # 画面サイズ
+import gym.spaces
 
-(x_target, y_target) = (0, 0)  # 目標位置
+from tank.tank_game.func import *
 
-Enemy_num = 3  # 敵戦車の数
-Enemy_pos_manual = [0] * (2 * Enemy_num)  # 各敵戦車の位置を記録するリスト
-Enemy_pos_learn = [0] * (2 * Enemy_num)
-
-
-distance_matrix = 0  # 経路的な距離行列
-
-
-# 敵戦車の位置を記録するリストの初期化(死んだ戦車の管理のため)
-def Enemy_pos_res():
-    global Enemy_pos_manual
-    global Enemy_pos_learn
-    for i in range(Enemy_num):  # 初期化
-        Enemy_pos_manual[2 * i] = 0
-        Enemy_pos_manual[2 * i + 1] = 0
-        Enemy_pos_learn[2 * i] = 0
-        Enemy_pos_learn[2 * i + 1] = 0
-
-
-# 敵戦車移動に関するウェイト(0→移動に影響しない)
-AD = 4  # 味方との距離の重視度合い(AIDistance)
-ED = 5  # 敵との距離の重視度合い(EnemyDistance)
-WD = 6  # 壁との距離の重視度合い(WallsDistance)
-AC = 7  # 弾丸回避の重要度合い(AvoidingCannon)
-# プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
-GD = 400
-GD_origin = GD
-# 斥力が働き合う距離(RepulsiveForceDistance)
-RFD = 300
-RFD_origin = RFD
-
-# レベル設定用グローバル変数
-Level = 0
-AD_level = 0  # 味方との距離の重視度合い(AIDistance)
-ED_level = 0  # 敵との距離の重視度合い(EnemyDistance)
-WD_level = 0  # 壁との距離の重視度合い(WallsDistance)
+__all__ = [
+    'Map',
+    'TankEnv',
+    'Player',
+    'Wall',
+    'Cannon',
+    'Object',
+    'Tank',
+    'InnerWall',
+    'OuterWall',
+    'Enemy_Manual',
+    'MovingObject',
+    'Enemy_Learn',
+]
 
 
 # マップ
 class Map:
     # マップデータ
-    with open("../map/map01.csv") as f:
+    with open("../../map/map01.csv") as f:
         reader = csv.reader(f)
         map = [[int(x) for x in row] for row in reader]
 
@@ -68,7 +35,7 @@ class Map:
 # オブジェクト
 class Object(pygame.sprite.Sprite):
     # 初期化
-    def __init__(self, filename, x, y):
+    def __init__(self, filename, x, y, w, h):
         pygame.sprite.Sprite.__init__(self, self.containers)
         self.containers = None
         self.image = load_img(filename)
@@ -78,6 +45,9 @@ class Object(pygame.sprite.Sprite):
         width = self.image.get_width()  # 横幅
         height = self.image.get_height()  # 縦幅
         self.rect = Rect(x, y, width, height)  # 四角形の宣言
+
+        self.w = w  # mapの横幅
+        self.h = h  # mapの縦幅
 
     def draw(self, Screen):
         Screen.blit(self.image, self.rect)
@@ -99,8 +69,8 @@ class Object(pygame.sprite.Sprite):
 # 壁オブジェクト
 class Wall(Object):
     # 初期化
-    def __init__(self, filename, x, y):
-        super().__init__(filename, x, y)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def draw(self, Screen):
         Screen.blit(self.image, self.rect)
@@ -108,23 +78,22 @@ class Wall(Object):
 
 class InnerWall(Wall):
     # 初期化
-    def __init__(self, filename, x, y):
-        super().__init__(filename, x, y)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class OuterWall(Wall):
-    corners = [[40, 40], [w - 40, 40], [40, h - 40], [w - 40, h - 40]]  # 四隅の座標（左上，右上，左下，右下）
-
     # 初期化
-    def __init__(self, filename, x, y):
-        super().__init__(filename, x, y)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.corners = [[40, 40], [self.w - 40, 40], [40, self.h - 40], [self.w - 40, self.h - 40]]  # 四隅の座標（左上，右上，左下，右下）
 
 
 # 移動オブジェクト
 class MovingObject(Object):
     # 初期化
-    def __init__(self, filename, x, y, v):  # イメージファイル名・x座標・y座標・速さ
-        super().__init__(filename, x, y)
+    def __init__(self, *args, v, **kwargs):  # イメージファイル名・x座標・y座標・速さ
+        super().__init__(*args, **kwargs)
         self.v = v
 
     # 描画
@@ -237,9 +206,9 @@ class Tank(MovingObject):
     CannonW = 10  # 砲弾の幅と高さ
     CannonH = 10
 
-    def __init__(self, filename, x, y, v):
-        super().__init__(filename, x, y, v)
-        self.CannonList = []  # 砲弾のリスト             
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.CannonList = []  # 砲弾のリスト
         # 射撃砲台の長さを求める
         self.radius = GetDistance(self.x, self.y, self.x + 0.6 * (self.rect.width + self.CannonW),
                                   self.y + 0.6 * (self.rect.height + self.CannonH))
@@ -287,8 +256,8 @@ class Tank(MovingObject):
 class Player(Tank):
     CannonSpeed = 2.0  # 砲弾速度
 
-    def __init__(self, filename, x, y, v):
-        super().__init__(filename, x, y, v)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def update(self):
         result = self.DetectCollision()
@@ -336,15 +305,16 @@ class Player(Tank):
         dx, dy = GetVelocity(rad, self.CannonSpeed)
         # 戦車に追加
         if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
-            self.CannonList.append(Cannon("../images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+            self.CannonList.append(
+                Cannon("../../images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
 
 
 # 敵戦車（パラメタを手動で調整）
 class Enemy_Manual(Tank):
     CannonSpeed = 2.0
 
-    def __init__(self, filename, x, y, v, dx, dy, firetime, num):
-        super().__init__(filename, x, y, v)
+    def __init__(self, *args, dx, dy, firetime, num, **kwargs):
+        super().__init__(*args, **kwargs)
         self.dx = dx  # x方向速度
         self.dy = dy  # y方向速度
         self.firetime = firetime  # 前回発射時間
@@ -516,7 +486,7 @@ class Enemy_Manual(Tank):
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
                     self.CannonList.append(
-                        Cannon("../images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+                        Cannon("../../images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
             else:
                 self.Shotlog.pop(0)  # 要素数の0
                 self.Shotlog.append(0)  # 値の0
@@ -542,7 +512,7 @@ class Enemy_Manual(Tank):
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
                     self.CannonList.append(
-                        Cannon("../images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+                        Cannon("../../images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
             else:
                 self.Shotlog.pop(0)  # 要素数の0
                 self.Shotlog.append(0)  # 値の0
@@ -710,7 +680,7 @@ class Enemy_Manual(Tank):
 
         else:  # 対象の他に消滅した物体が無ければ壁と衝突したと判定
             # 消滅した地点から最も近い壁を返す
-            result = Wall("../images/wall.png", -1, -1)
+            result = Wall("../../images/wall.png", -1, -1)
             result.kill()
             for wall in walls.sprites():
                 if GetDistance(result.rect.centerx, result.rect.centery, x, y) \
@@ -759,7 +729,7 @@ class Enemy_Manual(Tank):
         width = player.sprite.rect.width / 2
         height = player.sprite.rect.height / 2
         Player.containers = all_object
-        p = Player("../images/tank_0.png", x - width, y - height, 1)
+        p = Player("../../images/tank_0.png", x - width, y - height, 1)
         Player.containers = all_object, player
 
         # 自分からn方向への直線を得る（始点と終点で定義）（終点は始点からw×2先の点）
@@ -926,8 +896,8 @@ class Enemy_Manual(Tank):
 class Enemy_Learn(Tank):
     CannonSpeed = 2.0
 
-    def __init__(self, filename, x, y, v, dx, dy, firetime, num):
-        super().__init__(filename, x, y, v)
+    def __init__(self, *args, dx, dy, firetime, num, **kwargs):
+        super().__init__(*args, **kwargs)
         self.dx = dx  # x方向速度
         self.dy = dy  # y方向速度
         self.firetime = firetime  # 前回発射時間
@@ -1099,7 +1069,7 @@ class Enemy_Learn(Tank):
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
                     self.CannonList.append(
-                        Cannon("../images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+                        Cannon("../../images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
             else:
                 self.Shotlog.pop(0)  # 要素数の0
                 self.Shotlog.append(0)  # 値の0
@@ -1125,7 +1095,7 @@ class Enemy_Learn(Tank):
 
                 if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
                     self.CannonList.append(
-                        Cannon("../images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
+                        Cannon("../../images/cannon.png", self.shot_x, self.shot_y, self.CannonSpeed, dx, dy))
             else:
                 self.Shotlog.pop(0)  # 要素数の0
                 self.Shotlog.append(0)  # 値の0
@@ -1293,7 +1263,7 @@ class Enemy_Learn(Tank):
 
         else:  # 対象の他に消滅した物体が無ければ壁と衝突したと判定
             # 消滅した地点から最も近い壁を返す
-            result = Wall("../images/wall.png", -1, -1)
+            result = Wall("../../images/wall.png", -1, -1)
             result.kill()
             for wall in walls.sprites():
                 if GetDistance(result.rect.centerx, result.rect.centery, x, y) \
@@ -1342,7 +1312,7 @@ class Enemy_Learn(Tank):
         width = player.sprite.rect.width / 2
         height = player.sprite.rect.height / 2
         Player.containers = all_object
-        p = Player("../images/tank_0.png", x - width, y - height, 1)
+        p = Player("../../images/tank_0.png", x - width, y - height, 1)
         Player.containers = all_object, player
 
         # 自分からn方向への直線を得る（始点と終点で定義）（終点は始点からw×2先の点）
@@ -1508,8 +1478,8 @@ class Enemy_Learn(Tank):
 # 砲弾
 class Cannon(MovingObject):
 
-    def __init__(self, filename, x, y, v, dx, dy):
-        super().__init__(filename, x, y, v)
+    def __init__(self, *args, dx, dy, **kwargs):
+        super().__init__(*args, **kwargs)
         self.dx = dx  # x方向速度
         self.dy = dy  # y方向速度
         self.bounds = 0  # 反射回数
@@ -1546,517 +1516,54 @@ class Cannon(MovingObject):
         self.rect.y = self.y
 
 
-# 画像の読み込み
-def load_img(filename, colorkey=None):
-    img = pygame.image.load(filename)
-    img = img.convert()
-    if colorkey is not None:
-        if colorkey == -1:
-            colorkey = img.get_at((0, 0))
-        img.set_colorkey(colorkey, RLEACCEL)
-    return img
-
-
-############### 行列を計算して速度を得る ################
-def GetSpeed(List):
-    result = [0.0, 0.0]
-    for i in List:
-        result[0] += i[0] * i[1]
-        result[1] += i[0] * i[2]
-    dev = math.sqrt(result[0] ** 2 + result[1] ** 2)
-    # しきい値を設定
-    if dev < 0.6:
-        result[0] = 0
-        result[1] = 0
-    else:
-        result[0] = result[0] / dev  # 正規化
-        result[1] = result[1] / dev  # 正規化
-
-    # 最終的な移動方向決定
-    # 単位円を考えたときにそのx，y方向を1とするか0とするか
-    if abs(result[0]) >= math.cos(3 * math.pi / 8):
-        result[0] = int(math.copysign(1, result[0]))  # copysign(大きさ、符号)
-    else:
-        result[0] = 0
-
-    if abs(result[1]) >= math.sin(math.pi / 8):
-        result[1] = int(math.copysign(1, result[1]))
-    else:
-        result[1] = 0
-    return result[0], result[1]
-
-
-# 砲弾の角度を得る（1：対象物　2：発射点）
-def GetCannonAngle(x1, y1, x2, y2):
-    return math.atan2(y1 - y2, x1 - x2)
-
-
-# 2点間の距離を求める
-def GetDistance(x1, y1, x2, y2):
-    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
-
-
-# 角度から縦・横方向成分を求める
-def GetVelocity(r, v):
-    return math.cos(r) * math.sqrt(v), math.sin(r) * math.sqrt(v)
-
-
-# 2点間の経路的な距離を求める
-def GetPathDistance(P0, P1):
-    # 与えられた座標がどのブロックに該当するかを計算
-    P0_block = [int(x / Map.m_size) for x in P0]
-    P1_block = [int(x / Map.m_size) for x in P1]
-
-    # distance_matrixを用いて経路長を計算（参照する）
-    map_shape = np.array(Map.map).shape
-    distance_block = distance_matrix[map_shape[1] * P0_block[1] + P0_block[0]][
-        map_shape[1] * P1_block[1] + P1_block[0]]
-
-    # 経路長（ブロック数×40）と（できれば）ブロックの中心からの距離を足して返す
-    distance = distance_block * Map.m_size + \
-               GetDistance(P0[0], P0[1], (P0_block[0] + 0.5) * Map.m_size, (P0_block[1] + 0.5) * Map.m_size) + \
-               GetDistance(P1[0], P1[1], (P1_block[0] + 0.5) * Map.m_size, (P1_block[1] + 0.5) * Map.m_size)
-
-    return distance
-
-
-# 線分の交点を求める
-def line_cross_point(P0, P1, Q0, Q1):
-    x0, y0 = P0
-    x1, y1 = P1
-    x2, y2 = Q0
-    x3, y3 = Q1
-    a0 = x1 - x0
-    b0 = y1 - y0
-    a2 = x3 - x2
-    b2 = y3 - y2
-
-    d = a0 * b2 - a2 * b0
-    if d == 0:
-        # two lines are parallel
-        return None
-
-    sn = b2 * (x2 - x0) - a2 * (y2 - y0)
-    s = sn / d
-    tn = b0 * (x2 - x0) - a0 * (y2 - y0)
-    t = tn / d
-
-    if 0 <= s <= 1 and 0 <= t <= 1:
-        return [x0 + a0 * sn / d, y0 + b0 * sn / d]
-    else:
-        return None
-
-
-# ある軸において対称な点を返す
-def GetLineSymmetricPoint(P, axis_x, axis_y):
-    if axis_x is not None:  # x軸
-        return [2 * axis_x - P[0], P[1]]
-    elif axis_y is not None:  # y軸
-        return [P[0], 2 * axis_y - P[1]]
-
-
-# 残り敵数を返す関数
-def Aliving(enemies):
-    enemy_alive = 0
-    for e in enemies.sprites():
-        if e.alive():
-            enemy_alive += 1
-    return enemy_alive
-
-
-# 壁を配置
-def MakeWalls(m):
-    for i in range(m.row):
-        for j in range(m.col):
-            if m.map[i][j] > 0:
-                if m.map[i][j] == 1 and 0 < i < m.row - 1 and 0 < j < m.col - 1:
-                    InnerWall("../images/wall.png", j * m.m_size, i * m.m_size)
-                else:
-                    if m.map[i][j] == 2:
-                        OuterWall("../images/wall(W).png", j * m.m_size, i * m.m_size)
-                    elif m.map[i][j] == 3:
-                        OuterWall("../images/wall(W-T).png", j * m.m_size, i * m.m_size)
-                    elif m.map[i][j] == 4:
-                        OuterWall("../images/wall(W-S).png", j * m.m_size, i * m.m_size)
-                    elif m.map[i][j] == 5:
-                        OuterWall("../images/wall(H).png", j * m.m_size, i * m.m_size)
-                    elif m.map[i][j] == 6:
-                        OuterWall("../images/wall(H-T).png", j * m.m_size, i * m.m_size)
-                    elif m.map[i][j] == 7:
-                        OuterWall("../images/wall(L-U).png", j * m.m_size, i * m.m_size)
-                    elif m.map[i][j] == 8:
-                        OuterWall("../images/wall(R-U).png", j * m.m_size, i * m.m_size)
-                    elif m.map[i][j] == 9:
-                        OuterWall("../images/wall(L-D).png", j * m.m_size, i * m.m_size)
-
-
-# worldのコピー
-def CopyWorld():
-    objects = pygame.sprite.Group()  # 新しいworld
-    # new_object = 0  # 新しく生成したオブジェクト
-
-    # オブジェクトを一つ一つコピー
-    for o in all_object:
-        if type(o) is Player:
-            Player.containers = all_object
-            new_object = Player("../images/tank_0.png", o.x, o.y, o.v)
-            Player.containers = all_object, player
-        elif type(o) is Enemy_Manual:
-            new_object = Enemy_Manual("../images/tank_1.png", o.x, o.y, o.v, o.dx, o.dy, o.firetime, 0)
-        elif type(o) is InnerWall:
-            new_object = InnerWall(o.filename, o.x, o.y)
-        elif type(o) is OuterWall:
-            new_object = OuterWall(o.filename, o.x, o.y)
-        else:
-            new_object = Cannon("../images/cannon.png", o.x, o.y, o.v, o.dx, o.dy)
-
-        if new_object:
-            new_object.kill()
-        objects.add(new_object)
-
-    return objects
-
-
-# ウェイトを更新する関数
-def UpdateWeight(enemies):
-    Remaining = max(5 * Aliving(enemies) - sum([len(x.CannonList) for x in enemies.sprites()]), 0)
-    global AD  # 味方との距離の重視度合い(AIDistance)
-    global ED  # 敵との距離の重視度合い(EnemyDistance)
-    global WD  # 壁との距離の重視度合い(WallsDistance)
-    global AC  # 弾丸回避の重要度合い(AvoidingCannon)
-    global GD  # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
-    global RFD  # 斥力が働き合う距離(RepulsiveForceDistance)
-
-    global AD_level  # 味方との距離の重視度合い(AIDistance)
-    global ED_level  # 敵との距離の重視度合い(EnemyDistance)
-    global WD_level  # 壁との距離の重視度合い(WallsDistance)
-
-    AD = AD_level * Enemy_num
-    # ED = max(0, ED_level * Aliving(enemies) - Remaining)
-    ED = 4
-    # WD = max(0, WD_level * Enemy_num - Remaining)
-    WD = 5
-    AC = 7
-    # GD = GD_origin * (1 - ((5 * Aliving(enemies) - Remaining) / (10 * Aliving(enemies))))
-    GD = GD_origin
-    # RFD = RFD_origin * (1 - ((5 * Aliving(enemies) - Remaining) / (10 * Aliving(enemies))))
-    RFD = RFD_origin
-
-
-# 床の描画
-def DrawTiles(m):
-    for i in range(m.row):
-        for j in range(m.col):
-            screen.blit(m.images[0], (j * m.m_size, i * m.m_size))
-
-
-# 虚像オブジェクトの配置
-def MakeFalseImage():
-    borders = [40, w - 40, 40, h - 40]  # 左，右，上，下の境界
-
-    for o in all_object.sprites():
-        if not type(o) is OuterWall:
-            for i in range(len(borders)):
-                (x, y) = o.x, o.y
-
-                if i == 0 or i == 1:  # x方向の対称移動
-                    x = 2 * borders[i] - o.rect.centerx - o.rect.width * 0.5
-                else:  # y方向の対称移動
-                    y = 2 * borders[i] - o.rect.centery - o.rect.height * 0.5
-
-                # オブジェクトごとに虚像を作成
-                if type(o) is Player:
-                    Player.containers = all_object
-                    new_object = Player("../images/tank_0.png", x, y, o.v)
-                    Player.containers = all_object, player
-                    new_object.kill()
-                elif type(o) is Enemy_Manual:
-                    new_object = Enemy_Manual("../images/tank_1.png", x, y, o.v, o.dx, o.dy, o.firetime, 0)
-                    new_object.kill()
-                else:
-                    new_object = InnerWall(o.filename, x, y)
-                    all_object.remove(new_object)
-
-                # グループを整理
-                false_image.add(new_object)
-
-
-# 虚像オブジェクトの更新
-def UpdateFalseImage():
-    player_tanks = []
-    enemy_tanks = []
-
-    # 戦車の虚像を取得
-    for o in false_image:
-        if type(o) is Player:
-            player_tanks.append(o)
-        if type(o) is Enemy_Manual:
-            enemy_tanks.append(o)
-
-    # 位置を更新
-    borders = [40, w - 40, 40, h - 40]  # 左，右，上，下の境界
-
-    for i in range(len(borders)):  # プレイヤー
-        if i == 0 or i == 1:  # x方向の対称移動
-            player_tanks[i].rect.x = 2 * borders[i] - player.sprite.rect.centerx - player_tanks[1].rect.width * 0.5
-            player_tanks[i].rect.y = player.sprite.rect.y
-        else:  # y方向の対称移動
-            player_tanks[i].rect.x = player.sprite.rect.x
-            player_tanks[i].rect.y = 2 * borders[i] - player.sprite.rect.centery - player_tanks[1].rect.height * 0.5
-
-    enemy_list = enemies_manual.sprites()
-    for e in range(len(enemy_list)):
-        for i in range(len(borders)):  # 敵
-            if i == 0 or i == 1:  # x方向の対称移動
-                enemy_tanks[e * 4 + i].rect.x = 2 * borders[i] - enemy_list[e].rect.centerx - enemy_tanks[
-                    i].rect.width * 0.5
-                enemy_tanks[e * 4 + i].rect.y = enemy_list[e].rect.y
-            else:  # y方向の対称移動
-                enemy_tanks[e * 4 + i].rect.x = enemy_list[e].rect.x
-                enemy_tanks[e * 4 + i].rect.y = 2 * borders[i] - enemy_list[e].rect.centery - enemy_tanks[
-                    1].rect.height * 0.5
-
-
-# 経路的な距離行列の作成
-def MakeDistanceMatrix():
-    m = Map.map  # マップデータ
-
-    map_size = np.array(m).size  # マップサイズ（ブロック数）
-    map_shape = np.array(m).shape  # マップの形（ブロック数）
-
-    adjacent = [[0 for _ in range(map_size)] for _ in range(map_size)]  # 隣接行列
-
-    for i, xy in enumerate(itertools.product(range(map_shape[0]), range(map_shape[1]))):
-        x, y = xy
-        for delta in [(-1, 0), (0, 1), (1, 0), (0, -1)]:
-            nx = x + delta[0]
-            ny = y + delta[1]
-            if 0 <= nx < map_shape[0] and 0 <= ny < map_shape[1]:  # 隣接ブロックがマップ外でないとき
-                if m[x][y] == 0 and m[nx][ny] == 0:  # 隣接ブロックが壁でないとき
-                    adjacent[map_shape[1] * x + y][map_shape[1] * nx + ny] = 1
-
-    # print("size " + str(np.array(shortest_path(np.array(adjacent))).shape))
-    return shortest_path(np.array(adjacent))
-
-
-# pygameの準備
-pygame.init()  # pygame初期化
-pygame.display.set_mode((w, h), 0, 32)  # 画面設定
-pygame.display.set_caption("TANK GAME")
-screen = pygame.display.get_surface()
-
-# フォント
-font = pygame.font.SysFont(None, 80)
-text1 = font.render(" Reinforcement Learning \nEnemies Win ", True, (255, 255, 0))
-text2 = font.render(" Manual Win", True, (255, 64, 64))
-
-font2 = pygame.font.SysFont(None, 80)
-text_ready = font2.render("Ready...?", True, (255, 255, 255))
-
-font3 = pygame.font.SysFont(None, 35)
-text_move = font3.render("move to WASD or Arrow Key", True, (255, 255, 255))
-text_click = font3.render("click to START", True, (255, 255, 255))
-
-# グループの準備
-player = pygame.sprite.GroupSingle(None)
-enemies_manual = pygame.sprite.Group()
-enemies_learn = pygame.sprite.Group()
-cannons = pygame.sprite.Group()
-walls = pygame.sprite.Group()
-innerwalls = pygame.sprite.Group()
-outerwalls = pygame.sprite.Group()
-all_object = pygame.sprite.RenderUpdates()
-false_image = pygame.sprite.Group()
-
-# グループ分け
-Player.containers = all_object, player
-Enemy_Manual.containers = all_object, enemies_manual
-Enemy_Learn.containers = all_object, enemies_learn
-Cannon.containers = all_object, cannons
-Wall.containers = all_object, walls
-InnerWall.containers = all_object, walls, innerwalls
-OuterWall.containers = all_object, walls, outerwalls
-
-
-def main():
-    # 終了フラグ
-    FinishFlag = False
-    TimeFlag = True
-
-    # 戦車の準備
-    global y_target, x_target
-    Player("../images/tank_0.png", - w / 4, h / 2, 1.0)
-
-    for i in range(1, Enemy_num + 1):  # 敵戦車（手動）
-        Enemy_Manual("../images/tank_1.png", w * 5 / 6 + random.random() * 10,
-                     h * i / (Enemy_num + 1) + random.random() * 10, 1, 0, 0, time.time(), i - 1)
-        Enemy_pos_manual[2 * (i - 1)] = w * 3 / 4
-        Enemy_pos_manual[2 * (i - 1) + 1] = h * i / (Enemy_num + 1)
-
-    for i in range(1, Enemy_num + 1):  # 敵戦車（強化学習）
-        Enemy_Learn("../images/tank_0.png", w * 1 / 6 - random.random() * 10
-                    , h * i / (Enemy_num + 1) - random.random() * 10, 1, 0, 0, time.time(), i - 1)
-        Enemy_pos_learn[2 * (i - 1)] = w * 3 / 4
-        Enemy_pos_learn[2 * (i - 1) + 1] = h * i / (Enemy_num + 1)
-
-    # オブジェクト生成
-    Map.images[0] = load_img("../images/tile.png")  # 地面
-    Map.images[1] = load_img("../images/wall.png")  # 壁
-    m = Map()
-    MakeWalls(m)  # 壁を生成
-    # MakeFalseImage()  # 虚像オブジェクトの生成
-
-    global distance_matrix  # 経路的な距離行列
-    distance_matrix = MakeDistanceMatrix()  # 距離行列の作成
-
-    # 敵戦車のウェイトを表示
-    """print('Weight of Allies Distance:')
-    print(AD)
-    print('Weight of Enemy  Distance:')
-    print(ED)
-    print('Weight of Walls  Distance:')
-    print(WD)
-    print('Weight of Avoiding Cannon:')
-    print(AC)
-    print('Comfortable Distance:')
-    print(GD)
-    print('Repulsive Force Distance')
-    print(RFD)"""
-
-    # 準備画面
-    screen.blit(text_ready, (w / 3, h / 4))
-    screen.blit(text_click, (w / 3 + 20, h / 3 + 30))
-    screen.blit(text_move, (w / 4 + 10, 3 * h / 4))
-    pygame.display.update()
-
-    # スタート画面でキー入力を待機
-    DrawTiles(m)
-    all_object.draw(screen)  # すべて描写
-    img_start = pygame.image.load("../images/Start_menu.png")
-    screen.blit(img_start, (100, 100))
-    font_start = pygame.font.SysFont("None", 30)
-    text_start = font_start.render("User Guide", True, (255, 255, 255))
-    img_how = pygame.image.load("../images/how_con.png")
-    screen.blit(img_how, (200, 400))
-    screen.blit(text_start, (200, 360))
-    font_start = pygame.font.SysFont("None", 50)
-    text_start1 = font_start.render("1: Level 1", True, (255, 255, 255))
-    text_start2 = font_start.render("2: Level 2", True, (255, 255, 255))
-    text_start3 = font_start.render("3: Level 3", True, (255, 255, 255))
-    screen.blit(text_start1, (450, 360))
-    screen.blit(text_start2, (450, 400))
-    screen.blit(text_start3, (450, 440))
-    pygame.display.update()  # 描画処理を実行
-
-    ReadyFlag = True
-
-    # レベル設定(最強:3, 協調抜き:2, ベーシック:1)
-    global Level
-    Level = 1
-    while ReadyFlag:
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN:
-                pressed_key = pygame.key.get_pressed()
-                if pressed_key[pygame.K_0]:
-                    Level = 0
-                    ReadyFlag = False
-                if pressed_key[pygame.K_1]:
-                    Level = 1
-                    ReadyFlag = False
-                if pressed_key[pygame.K_2]:
-                    Level = 2
-                    ReadyFlag = False
-                if pressed_key[pygame.K_3]:
-                    Level = 3
-                    ReadyFlag = False
-
-            # 終了用のイベント処理
-            if event.type == QUIT:  # 閉じるボタンが押されたとき
-                pygame.quit()
-                sys.exit()
-            if event.type == KEYDOWN:  # キーを押したとき
-                if event.key == K_ESCAPE:  # Escキーが押されたとき
-                    pygame.quit()
-                    sys.exit()
-
-    pygame.time.wait(300)
-
-    # レベルに応じたWeightの変更
-    global AD_level  # 味方との距離の重視度合い(AIDistance)
-    global ED_level  # 敵との距離の重視度合い(EnemyDistance)
-    global WD_level  # 壁との距離の重視度合い(WallsDistance)
-
-    if Level == 3:
-        AD_level = 1
-        ED_level = 6
-        WD_level = 7
-    elif Level == 2:
-        AD_level = 0
-        ED_level = 6
-        WD_level = 7
-    else:
-        AD_level = 0
-        ED_level = 0
-        WD_level = 0
-
-    start = pygame.time.get_ticks()  # 開始時間を記録
-
-    while 1:
-        pygame.time.wait(10)  # 更新時間間隔
-
-        # 終了フラグが立ってないときに更新
-        if not FinishFlag:
-            DrawTiles(m)  # 背景として床を描画
-            all_object.draw(screen)  # すべて描写
-            all_object.update()  # すべて更新
-            # false_image.draw(screen)
-            # print(player, enemies, cannons, walls)
-
-        # 敵(learn)がいなくなったとき
-        if not all_object.has(enemies_learn):
-            DrawTiles(m)  # 背景として床を描画
-            all_object.draw(screen)  # すべて描写
-            enemies_manual.update()
-            screen.blit(text2, (w / 4, h / 4))
-            FinishFlag = True
-
-        # 敵(manual)がいなくなったとき
-        if not all_object.has(enemies_manual):
-            DrawTiles(m)  # 背景として床を描画
-            all_object.draw(screen)  # すべて描写
-            player.sprite.DrawGun()
-            screen.blit(text1, (0, h / 4))
-            FinishFlag = True
-
-        # if FinishFlag and TimeFlag:
-        #     finish = pygame.time.get_ticks()
-        #     dt = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        #     with open("{}.txt".format(dt), 'w') as f:
-        #         print((finish - start) / 1000, file=f)
-        #     TimeFlag = False
-
-        pygame.display.update()  # 画面更新
-
-        # イベント処理
-        for event in pygame.event.get():
-            # 終了フラグが立ってるときはクリックで終了
-            if event.type == MOUSEBUTTONDOWN and event.button == 1:
-                if FinishFlag:
-                    pygame.quit()
-                    sys.exit()
-                else:
-                    x_target, y_target = event.pos
-                    player.sprite.Shot()
-
-            # 終了用のイベント処理
-            if event.type == QUIT:  # 閉じるボタンが押されたとき
-                pygame.quit()
-                sys.exit()
-            if event.type == KEYDOWN:  # キーを押したとき
-                if event.key == K_ESCAPE:  # Escキーが押されたとき
-                    pygame.quit()
-                    sys.exit()
-
-
-if __name__ == '__main__':
-    main()
+class TankEnv(gym.Env):
+    (w, h) = (800, 600)  # 画面サイズ
+
+    (x_target, y_target) = (0, 0)  # 目標位置
+
+    Enemy_num = 3  # 敵戦車の数
+    Enemy_pos_manual = [0] * (2 * Enemy_num)  # 各敵戦車の位置を記録するリスト
+    Enemy_pos_learn = [0] * (2 * Enemy_num)
+
+    distance_matrix = 0  # 経路的な距離行列
+
+    # pygameの準備
+    pygame.init()  # pygame初期化
+    pygame.display.set_mode((w, h), 0, 32)  # 画面設定
+    pygame.display.set_caption("TANK GAME")
+    screen = pygame.display.get_surface()
+
+    # フォント
+    font = pygame.font.SysFont(None, 80)
+    text1 = font.render(" Reinforcement Learning \nEnemies Win ", True, (255, 255, 0))
+    text2 = font.render(" Manual Win", True, (255, 64, 64))
+
+    font2 = pygame.font.SysFont(None, 80)
+    text_ready = font2.render("Ready...?", True, (255, 255, 255))
+
+    font3 = pygame.font.SysFont(None, 35)
+    text_move = font3.render("move to WASD or Arrow Key", True, (255, 255, 255))
+    text_click = font3.render("click to START", True, (255, 255, 255))
+
+    # グループの準備
+    player = pygame.sprite.GroupSingle(None)
+    enemies_manual = pygame.sprite.Group()
+    enemies_learn = pygame.sprite.Group()
+    cannons = pygame.sprite.Group()
+    walls = pygame.sprite.Group()
+    innerwalls = pygame.sprite.Group()
+    outerwalls = pygame.sprite.Group()
+    all_object = pygame.sprite.RenderUpdates()
+    false_image = pygame.sprite.Group()
+
+    # グループ分け
+    Player.containers = all_object, player
+    Enemy_Manual.containers = all_object, enemies_manual
+    Enemy_Learn.containers = all_object, enemies_learn
+    Cannon.containers = all_object, cannons
+    Wall.containers = all_object, walls
+    InnerWall.containers = all_object, walls, innerwalls
+    OuterWall.containers = all_object, walls, outerwalls
+
+    def __init__(self):
+        super().__init__()

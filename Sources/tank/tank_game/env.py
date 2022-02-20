@@ -1,4 +1,5 @@
 import csv
+import math
 import random
 import sys
 import time
@@ -6,6 +7,8 @@ from abc import ABC
 from copy import copy
 
 import gym.spaces
+from gym.spaces import utils
+import numpy as np
 
 from tank.tank_game.util import *
 
@@ -23,6 +26,9 @@ __all__ = [
     'MovingObject',
     'Enemy_Learn',
 ]
+
+MOVE_ACTION_NUM = 8  # 8方向
+SHOT_ACTION_NUM = 32  # 32方向
 
 
 # マップ
@@ -251,6 +257,7 @@ class Tank(MovingObject):
     CannonNum = 5  # 砲弾数
     CannonW = 10  # 砲弾の幅と高さ
     CannonH = 10
+    CannonSpeed = 2.0  # 砲弾速度
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -300,8 +307,6 @@ class Tank(MovingObject):
 
 # プレイヤー戦車
 class Player(Tank):
-    CannonSpeed = 2.0  # 砲弾速度
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.x_target = 0
@@ -364,8 +369,6 @@ class Player(Tank):
 
 # 敵戦車（パラメタを手動で調整）
 class Enemy_Manual(Tank):
-    CannonSpeed = 2.0
-
     # 敵戦車移動に関するウェイト(0→移動に影響しない)
     AD = 4  # 味方との距離の重視度合い(AIDistance)
     ED = 5  # 敵との距離の重視度合い(EnemyDistance)
@@ -956,30 +959,11 @@ class Enemy_Manual(Tank):
         # GD = GD_origin * (1 - ((5 * Aliving(enemies) - Remaining) / (10 * Aliving(enemies))))
         self.GD = self.GD_origin
         # RFD = RFD_origin * (1 - ((5 * Aliving(enemies) - Remaining) / (10 * Aliving(enemies))))
-        self.RFD = self.RFD_origin
+        self.RFD = self.RFD_origi
 
 
 # 敵戦車（強化学習）
 class Enemy_Learn(Tank):
-    CannonSpeed = 2.0
-
-    # 敵戦車移動に関するウェイト(0→移動に影響しない)
-    AD = 4  # 味方との距離の重視度合い(AIDistance)
-    ED = 5  # 敵との距離の重視度合い(EnemyDistance)
-    WD = 6  # 壁との距離の重視度合い(WallsDistance)
-    AC = 7  # 弾丸回避の重要度合い(AvoidingCannon)
-    # プレイヤー戦車と敵戦車の心地よい距離(GoodDistance)
-    GD = 400
-    GD_origin = GD
-    # 斥力が働き合う距離(RepulsiveForceDistance)
-    RFD = 300
-    RFD_origin = RFD
-
-    # レベル設定用グローバル変数
-    Level = 0
-    AD_level = 0  # 味方との距離の重視度合い(AIDistance)
-    ED_level = 0  # 敵との距離の重視度合い(EnemyDistance)
-    WD_level = 0  # 壁との距離の重視度合い(WallsDistance)
 
     def __init__(self, *args, dx, dy, firetime, num, **kwargs):
         super().__init__(*args, **kwargs)
@@ -989,26 +973,30 @@ class Enemy_Learn(Tank):
         self.num = num
         width = self.rect.width
         height = self.rect.height
-        self.serch = Rect(self.x - 1.5 * width, self.y - 1.5 * height, 4 * width, 4 * height)  # 感知範囲
         self.frames = 0  # 射撃間隔を測る際に使用
-        self.CD_list = []  # 移動方向を決定するリスト
-        self.burst = 0  # 3点バーストにするための変数
         self.Shotlog = [1] * 10
 
-    def update(self):
+    def update(self, action):
         if self.env.all_object.has(self.env.enemies_manual):
-            self.UpdateWeight(self.env.enemies_manual)  # ウェイトの更新
+            if MOVE_ACTION_NUM <= action:
+                rad = (action - MOVE_ACTION_NUM) * (2 * math.pi / SHOT_ACTION_NUM)
+                self.Shot(rad)  # 砲弾発射
 
-            # 砲弾の発射
-            if self.Level == 1:
-                self.Shot_basic()
-            else:
-                if not self.env.Level == 0:
-                    self.Shot()
-            # 砲弾の整理
-            self.AdjustCannonList()
+            self.AdjustCannonList()   # 砲弾の整理
 
-            self.Move()  # 戦車の移動
+            if action < MOVE_ACTION_NUM:
+                move_list = [
+                    (0, 1),
+                    (1, 1),
+                    (1, 0),
+                    (1, -1),
+                    (0, -1),
+                    (-1, -1),
+                    (-1, 0),
+                    (-1, 1),
+                ]
+                (dx, dy) = move_list[action]
+                self.Move(dx, dy)  # 戦車の移動
 
             # 座標の更新
             self.rect.x = self.x
@@ -1020,47 +1008,8 @@ class Enemy_Learn(Tank):
         self.DrawGun()
         pygame.draw.circle(self.env.screen, (112, 78, 125), (int(self.x) + 20, int(self.y) + 20), 16)
 
-    ###################### ある戦車に対する各敵戦車間の斥力をリストに追加 ###############
-    def RepilsiveForce(self):
-        for i in range(self.env.Enemy_num_learn):
-            if not self.num == i:
-                # 既に爆破されている戦車は考慮しない(死戦車はx座標の数値のみ0)
-                if not self.env.Enemy_pos_learn[2 * i] == 0:
-                    angle = GetCannonAngle(self.env.Enemy_pos_learn[2 * i], self.env.Enemy_pos_learn[2 * i + 1], self.x,
-                                           self.y)
-                    dx, dy = GetVelocity(angle, self.v)
-                    # 方向ベクトルを正規化
-                    dev = math.sqrt(dx ** 2 + dy ** 2)
-                    dx = dx / dev
-                    dy = dy / dev
-                    # 斥力が働くか否かを判定(斥力が働く範囲に入っているか)
-                    distance = GetDistance(self.env.Enemy_pos_learn[2 * i], self.env.Enemy_pos_learn[(2 * i) + 1],
-                                           self.x, self.y)
-                    change = distance - self.RFD * (1 - self.Shotlog.count(0) / 20)
-                    if change < 0:
-                        weight = (-1) * self.AD
-                        # 発生する斥力をリストに追加
-                        self.CD_list.append([weight, dx, dy])
-
-    ###################### プレイヤーとの距離感に対するバネの力の方向 ##################
-    def Sense_of_Distance(self):
-        # distance = GetDistance(player.sprite.x, player.sprite.y, self.x, self.y)
-        for enemy in self.env.enemies_learn.sprites():
-            distance = self.env.GetPathDistance(self.rect.center, enemy.rect.center)
-            change = distance - self.GD * (1 - self.Shotlog.count(0) / 20)
-            if change > 0:
-                return 1
-            elif change == 0:
-                return 0
-            else:
-                return -1
-
-    ###################### どの方向に移動するか決定する行列に要素を追加 #################
-    def Add_CD_list(self, weight, dx, dy):
-        self.CD_list.append([weight, dx, dy])
-
     # 敵戦車の移動
-    def Move(self):
+    def Move(self, dx, dy):
         result = self.DetectCollision()
 
         # 砲弾と衝突した時
@@ -1068,47 +1017,8 @@ class Enemy_Learn(Tank):
             self.kill()
             self.env.Enemy_pos_res()
 
-        ##################### ここら辺に移動戦略関数 ########################
-        # 初期化
-        self.CD_list = []
-
-        # 敵向きの方向ベクトルを算出
-        for enemy in self.env.enemies_learn.sprites():
-            angle = GetCannonAngle(enemy.rect.centerx, enemy.rect.centery, self.x, self.y)
-            dx, dy = GetVelocity(angle, self.v)
-            # 方向ベクトルを正規化
-            dev = math.sqrt(dx ** 2 + dy ** 2)
-            dx = dx / dev
-            dy = dy / dev
-            dx, dy = self.GetPathVelocity(enemy)
-            # 重みの導出 (プレイヤーの現在地-心地よい距離GD)*ED
-            weight = self.ED * self.Sense_of_Distance()
-            # 移動先を決定する行列に追加
-            self.Add_CD_list(weight, dx, dy)
-
-        # 斥力を求める
-        self.RepilsiveForce()
-
-        # 弾避けベクトルを求める
-        for c in self.env.cannons.sprites():
-            nx, ny, d = self.CannonDodge(c)
-            if nx == -1 and ny == -1 and d == -1:
-                continue
-            else:
-                weight = self.AC * 1 / d
-                self.Add_CD_list(weight, nx, ny)
-
-        # 壁避けベクトルを求める
-        for w in self.env.walls:
-            wx, wy, d = self.WallDodge(w)
-            if wx == -1 and wx == -1 and d == -1:
-                continue
-            else:
-                weight = self.WD * 1 / (d ** 2) * math.ceil(1 - self.Shotlog.count(0) / 10)
-                self.Add_CD_list(weight, wx, wy)
-
         # 各戦車の移動を計算
-        self.dx, self.dy = GetSpeed(self.CD_list)
+        self.dx, self.dy = dx, dy
         self.dx = self.dx * self.v
         self.dy = self.dy * self.v
 
@@ -1137,12 +1047,11 @@ class Enemy_Learn(Tank):
                           4 * self.rect.height)
 
     # 射撃の管理
-    def Shot(self):
+    def Shot(self, rad):
         self.frames += 1
 
         if self.frames > 30:  # 30フレームごとに射撃可能
             self.frames = 0
-            rad = self.ShotStrategy()  # 射撃する角度を求める
 
             # 指定された方向に撃つ
             if rad:
@@ -1164,395 +1073,6 @@ class Enemy_Learn(Tank):
             else:
                 self.Shotlog.pop(0)  # 要素数の0
                 self.Shotlog.append(0)  # 値の0
-
-    # 射撃の管理(ベーシック)
-    def Shot_basic(self):
-        self.frames += 1
-
-        if self.frames > 200:  # 2秒ごとにプレイヤー方向に射撃
-            self.frames = 0
-            enemy = self.env.enemies_learn.sprites()[0]
-            rad = GetCannonAngle(enemy.rect.centerx, enemy.rect.centery, self.rect.centerx,
-                                 self.rect.centery)  # 射撃する角度を求める
-
-            # 指定された方向に撃つ
-            if rad:
-                self.Shotlog.pop(0)  # 要素数の0
-                self.Shotlog.append(1)  # 値の1
-                self.GunDirection = rad  # 射撃口の向きを更新
-                self.shot_x, self.shot_y = self.GetShotPoint(rad)  # 射撃ポイントを求める
-
-                dx, dy = GetVelocity(rad, self.CannonSpeed)  # 砲弾の速度（x方向・y方向）を求める
-
-                if len(self.CannonList) <= self.CannonNum - 1:  # フィールド上には最大5発
-                    self.CannonList.append(
-                        Cannon(filename="images/cannon.png",
-                               x=self.shot_x,
-                               y=self.shot_y,
-                               v=self.CannonSpeed,
-                               dx=dx,
-                               dy=dy))
-            else:
-                self.Shotlog.pop(0)  # 要素数の0
-                self.Shotlog.append(0)  # 値の0
-
-    # 射撃の戦術アルゴリズム
-    def ShotStrategy(self):
-        cannon_num = len(self.CannonList)  # 現在保有する砲弾の数
-        (x, y) = (0, 0)  # 射撃位置
-        dev_dis = 50  # 偏差距離
-        target = None
-
-        # 最も距離の近い敵を求める
-        min_dis = 1000
-        for enemy in self.env.enemies_manual.sprites():
-            dis = GetDistance(self.x, self.y, enemy.rect.centerx, enemy.rect.centery)  # プレイヤーとの距離を測定
-            if min_dis > dis:
-                min_dis = dis
-                target = enemy
-
-        if cannon_num == 0:  # 相手の今いる位置に射撃
-            if min_dis <= self.GD + 40:
-                x, y = self.GetDeviationPosition(target, dev_dis)
-                self.burst = 1
-
-        elif cannon_num == 1:  # 偏差射撃（1.5倍）
-            if self.burst:
-                x, y = self.GetDeviationPosition(target, dev_dis * 1.5)
-                # x = player.sprite.rect.centerx * 2 - x
-                # y = player.sprite.rect.centery * 2 - y
-            else:
-                if min_dis <= self.GD_origin * 0.8:
-                    (x, y) = target.rect.center
-
-        elif cannon_num == 2:  # 偏差射撃
-            if self.burst:
-                (x, y) = target.rect.center
-                self.burst = 0
-            else:
-                if min_dis <= self.GD_origin * 0.7:
-                    (x, y) = target.rect.center
-
-        elif 3 <= cannon_num:  # 残りの砲弾
-            if min_dis < self.GD_origin * 0.6:  # プレイヤーとの距離が近い場合
-                (x, y) = target.rect.center  # 相手の今いる位置に射撃
-            else:
-                return 0
-
-        if x == 0 and y == 0:
-            return 0
-        rad = self.GetShotAngle(x, y, target)
-        return rad
-
-    # 偏差位置を求める
-    @staticmethod
-    def GetDeviationPosition(target, dis):
-        (x_now, y_now) = (target.log[0][0], target.log[0][1])  # 現在の位置
-        (x_prev, y_prev) = (target.log[1][0], target.log[1][1])  # 一フレーム前の位置
-
-        # 偏差位置を計算
-        if x_now - x_prev or y_now - y_prev:  # 速度が0より大きいとき
-            rad = GetCannonAngle(x_now, y_now, x_prev, y_prev)  # 標的の進む方向を得る
-            (x, y) = (target.rect.centerx + dis * math.cos(rad), target.rect.centery + dis * math.sin(rad))
-
-        else:  # 静止しているとき
-            (x, y) = target.rect.center  # 相手のいる位置を狙う
-
-        return x, y
-
-    # どの方向に射撃するかを決定する
-    def GetShotAngle(self, x, y, target):
-        # 直接狙えるか判定
-        rad = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)
-
-        if self.JudgeAim(rad, target):
-            return rad
-
-        #         # 反射で狙えるか判定
-        # rad = self.ReflectionOuterWall()
-        # # print(rad)
-        # if rad is not None:
-        #     return rad
-        #
-        # # 反射で狙えるか判定
-        # rad -= math.pi * 0.5
-        # parts = 18
-        # for rad in [rad + math.pi * x / parts for x in range(1, parts)]:
-        #     if self.JudgeAim(rad):
-        #         return rad
-
-        # 反射で狙えるか判定
-        rad = self.ReflectionWall(x, y)
-        if rad is not None:
-            return rad
-
-        return 0
-
-    # 狙えるか判定する
-    def JudgeAim(self, rad, target):
-        # shot_x, shot_y = self.GetShotPoint(rad)
-        # dx, dy = GetVelocity(rad, self.CannonSpeed)
-        #
-        # # シミュレーションを行う
-        # result_direct = self.MoveSimulation(Cannon("cannon.png", shot_x, shot_y, self.CannonSpeed, dx, dy))
-        # if type(result_direct[0]) is Player:  # シミュレーションした結果、プレイヤーに当たる時
-        #     return True
-        # else:
-        #     return False
-
-        # シミュレーションを行う
-        start_x, start_y = self.rect.center
-        length = max(self.env.w, self.env.h)  # 画面の縦と横の内大きい方
-        end_x = start_x + length * math.cos(rad)
-        end_y = start_y + length * math.sin(rad)
-
-        line = [[start_x, start_y], [end_x, end_y]]  # radで指定された方向の直線（線分）a
-        dis_p = GetDistance(self.rect.centerx, self.rect.centery,  # プレイヤーと自分との距離
-                            target.rect.centerx, target.rect.centery)
-
-        for o in self.env.all_object.sprites():
-            points = o.DetectIntersection(line[0], line[1])
-            if points != [0, 0, 0, 0]:  # 交点が存在する
-                if self.env.enemies_manual.has(o) and o is not self or self.env.walls.has(o):
-                    dis_o = GetDistance(self.rect.centerx, self.rect.centery,  # オブジェクトと自分との距離
-                                        o.rect.centerx, o.rect.centery)
-                    if dis_p > dis_o:
-                        return False
-
-        return True
-
-    # 砲弾などの移動シミュレーション
-    def MoveSimulation(self, o):
-        o.kill()  # 作成した時点でグループに入ってしまうので除外
-        objects = self.env.CopyWorld()  # シミュレーション用にworldを複製
-        objects_copy = [x for x in objects.sprites()]  # worldのコピー
-        objects.add(o)  # シミュレーション用の世界に対象を追加
-        collided_object = 0  # 衝突したオブジェクト
-        t = 0  # 繰り返し回数
-
-        while 1:
-            # コピーを作成
-            o_copy = o
-
-            o.update()
-            if not objects.has(o_copy):  # 消滅したとき
-                # print(objects, objects_copy)
-                # 何と衝突して消滅したかを調べる
-                for a in objects_copy:
-                    if not a.alive():
-                        collided_object = a
-
-                # 座標を記録
-                (x, y) = (o_copy.x, o_copy.y)
-
-                break
-
-            t += 1
-
-        # シミュレーション用worldを削除
-        for a in objects.sprites():
-            a.kill()
-
-        if collided_object:  # 戦車や砲弾と衝突したとき
-            return [collided_object, [x, y]]
-
-        else:  # 対象の他に消滅した物体が無ければ壁と衝突したと判定
-            # 消滅した地点から最も近い壁を返す
-            result = Wall("images/wall.png", -1, -1)
-            result.kill()
-            for wall in self.env.walls.sprites():
-                if GetDistance(result.rect.centerx, result.rect.centery, x, y) \
-                        > GetDistance(wall.rect.centerx, wall.rect.centery, x, y):
-                    result = wall
-
-            return [result, [x, y]]
-
-    # 壁で反射できるかどうかの判定（内壁・外壁）
-    def ReflectionWall(self, x, y):
-        # 引数の示す座標に疑似プレイヤーオブジェクトを配置
-        width = self.env.player.sprite.rect.width / 2
-        height = self.env.player.sprite.rect.height / 2
-        Player.containers = self.env.all_object
-        p = Player(filename="images/tank_0.png",
-                   x=x - width,
-                   y=y - height,
-                   v=1)
-        Player.containers = self.env.all_object, self.env.player
-
-        # 自分からn方向への直線を得る（始点と終点で定義）（終点は始点からw×2先の点）
-        line_list = []  # 直線のリスト
-        rad_player = GetCannonAngle(x, y, self.rect.centerx, self.rect.centery)  # 自分とプレイヤーとの角度
-        rad_player -= math.pi * 0.5
-        parts = 36
-        length = max(self.env.w, self.env.h)  # 画面の縦と横の内大きい方
-        start_x, start_y = self.rect.center
-        for r in [rad_player + math.pi * x / parts for x in range(1, parts)]:
-            end_x = start_x + 2 * length * math.cos(r)
-            end_y = start_y + 2 * length * math.sin(r)
-
-            line_list.append([[start_x, start_y], [end_x, end_y]])  # リストに追加
-
-        # 壁を自分から近い順に並び替え
-        objects = {}
-        for o in self.env.all_object.sprites():
-            if o is not self:
-                if self.env.walls.has(o) or self.env.enemies_manual.has(o):
-                    objects.setdefault(o, GetDistance(self.rect.centerx, self.rect.centery, o.rect.centerx,
-                                                      o.rect.centery))  # enemyとwallを追加
-
-        objects_sorted = sorted(objects.items(), key=lambda a: a[1])  # プレイヤーとの距離で昇順に並び替え
-
-        # それぞれの壁について
-        L = 1000  # 十分大きい数
-        reflected_line_list = []  # 1回反射させた直線のリスト
-        for o in [i[0] for i in objects_sorted]:
-            # n方向の直線と交わるか判定
-            i = 0
-            while i < len(line_list):
-                line = line_list[i]
-                # 交われば直線を反転させる（交点を始点,終点は対称移動で得る）
-                points = o.DetectIntersection(line[0], line[1])
-                if points != [0, 0, 0, 0]:  # 交点が存在する
-                    if self.env.walls.has(o):  # 交点の存在するオブジェクトが壁の時
-                        points_dis = [GetDistance(self.rect.centerx, self.rect.centery, x[0], x[1])
-                                      if x != 0 else L for x in points]  # 交点と自分との距離を求める
-                        points_dis_sorted = sorted(points_dis)  # 昇順に並び替え
-
-                        # 最も近い交点で反射
-                        p_i = points_dis.index(points_dis_sorted[0])  # 最も近い交点のインデックス
-                        reflect_point = points[p_i]
-                        if p_i == 1 or p_i == 3:  # 壁の左右のどちらかで反射する場合
-                            reflected_line = [reflect_point, GetLineSymmetricPoint(line[1], reflect_point[0], None)]
-                        else:  # 壁の上下で反射する場合
-                            reflected_line = [reflect_point, GetLineSymmetricPoint(line[1], None, reflect_point[1])]
-
-                        line_list.remove(line)  # 反射前の直線のリストから削除
-                        reflected_line_list.append(reflected_line)  # リストに追加
-
-                    else:  # 交点の存在するオブジェクトが敵の時
-                        line_list.remove(line)  # 反射前の直線のリストから削除
-
-                else:  # 交点が存在しない場合
-                    i += 1
-
-            # すべての直線を一度反転させたら終了
-            if len(line_list) == 0:
-                break
-
-        # 反転させた直線について,プレイヤーと交わる物を得る
-        Shot_line_list = []
-        for line in reflected_line_list:
-            points = p.DetectIntersection(line[0], line[1])  # プレイヤーとの交点を求める
-            if points != [0, 0, 0, 0]:  # 交点が存在するとき
-                player_dis = GetDistance(self.env.player.sprite.rect.centerx, self.env.player.sprite.rect.centery,
-                                         line[0][0], line[0][1])  # プレイヤーと反射点の距離
-                # その中からエネミーや壁に交わる物を除外
-                flag = 1
-                for o in [x for x in self.env.all_object.sprites() if
-                          self.env.innerwalls.has(x) or self.env.enemies_manual.has(x)]:
-                    # 交点が存在し，反射点との距離がプレイヤーとのよりも短い場合
-                    if o.DetectIntersection(line[0], line[1]) != [0, 0, 0, 0] \
-                            and player_dis > GetDistance(o.rect.centerx, o.rect.centery, line[0][0], line[0][1]):
-                        flag = 0
-                if flag:
-                    Shot_line_list.append(line)  # リストに追加
-                    # print(line)
-
-        # 疑似プレイヤーオブジェクトを削除
-        p.kill()
-
-        # 角度を返す
-        if len(Shot_line_list) > 0:  # リストが空でないとき
-            return GetCannonAngle(Shot_line_list[0][0][0], Shot_line_list[0][0][1], self.rect.centerx,
-                                  self.rect.centery)
-        else:  # リストが空の時
-            return None
-
-    # 敵戦車弾除けベクトル(法線ベクトル)返還
-    def CannonDodge(self, c):
-        # 感知範囲との接触判定
-        if self.serch.collidepoint(c.x, c.y):
-            # 近づく弾かどうか
-            if GetDistance(self.rect.centerx, self.rect.centery, c.x, c.y) > GetDistance(self.rect.centerx,
-                                                                                         self.rect.centery, c.x + c.dx,
-                                                                                         c.y + c.dy):
-                # 法線＝(c.dy/c.dx, -1) or c.dxが0のとき(1,0)
-                if c.dx == 0:
-                    nx = -1
-                    ny = 0
-                else:
-                    nx = c.dy / c.dx
-                    ny = -1
-                # 正規化
-                d = math.sqrt(nx ** 2 + ny ** 2)
-                nx = nx / d
-                ny = ny / d
-
-                r = GetCannonAngle(self.rect.centerx, self.rect.centery, c.x, c.y)
-                vx, vy = GetVelocity(r, 1)
-                direction = c.dx * vy - c.dy * vx  # 法線の方向決定
-                distance = abs(direction) / math.sqrt(c.dx ** 2 + c.dy ** 2)  # 戦車の中心と弾道との距離
-                # 弾道に近づかないように
-                if (direction >= 0 or c.dx < 0) and not (direction >= 0 and c.dx < 0):
-                    nx = -nx
-                    ny = -ny
-                return nx, ny, distance
-            else:
-                return -1, -1, -1
-        else:
-            return -1, -1, -1
-
-    # 敵戦車の壁避けベクトル返還
-    def WallDodge(self, w):
-        dx = 0
-        dy = 0
-        if self.serch.colliderect(w.rect):  # 感知範囲との接触判定
-            wt_x = self.x - w.x  # 戦車と壁とのx、yの直線距離
-            wt_y = self.y - w.y
-            if abs(wt_x) >= abs(wt_y):  # 戦車と壁がx、y方向でどちらが大きく離れてるか(離れてる方向が壁と接触してる)
-                dx = math.copysign(self.v, wt_x)
-            else:
-                dy = math.copysign(self.v, wt_y)
-            return dx, dy, GetDistance(self.x, self.y, w.x, w.y) / 45
-        else:
-            return -1, -1, -1
-
-    # target（座標）までの経路的な距離が近くなるような方向を求める
-    def GetPathVelocity(self, target):
-        # 自分の周囲のブロックを検査し，最も経路的な距離が短くなるようなブロックを求める
-        result = [self.env.GetPathDistance(self.rect.center, target.rect.center), self.rect.center]  # 経路的な距離・座標
-        m = Map.m_size
-        for delta in [(-m, 0), (0, m), (m, 0), (0, -m), (-m, -m), (m, m), (-m, m), (m, -m)]:
-            x = self.rect.centerx + delta[0]
-            y = self.rect.centery + delta[1]
-            dis = self.env.GetPathDistance([x, y], target.rect.center)
-
-            if result[0] > dis != math.inf:  # 現在地よりも経路的な距離が短い場合
-                result = [dis, [x, y]]
-
-        # 求めたブロックへの方向ベクトルを計算
-        dx = (result[1][0] - self.rect.centerx) / m
-        dy = (result[1][1] - self.rect.centery) / m
-
-        if dx == 0 and dy == 0:  # 現在地が経路的な距離が最も近い
-            return 0, 0
-        else:  # 経路的な距離が短くなるような方向ベクトルを返す
-            return dx, dy
-
-    # ウェイトを更新する関数
-    def UpdateWeight(self, enemies):
-        Remaining = max(5 * Aliving(enemies) - sum([len(x.CannonList) for x in enemies.sprites()]), 0)
-
-        self.AD = self.AD_level * self.env.Enemy_num_learn
-        # ED = max(0, ED_level * Aliving(enemies) - Remaining)
-        self.ED = 4
-        # WD = max(0, WD_level * Enemy_num - Remaining)
-        self.WD = 5
-        self.AC = 7
-        # GD = GD_origin * (1 - ((5 * Aliving(enemies) - Remaining) / (10 * Aliving(enemies))))
-        self.GD = self.GD_origin
-        # RFD = RFD_origin * (1 - ((5 * Aliving(enemies) - Remaining) / (10 * Aliving(enemies))))
-        self.RFD = self.RFD_origin
 
 
 class TankEnv(gym.Env, ABC):
@@ -1560,8 +1080,11 @@ class TankEnv(gym.Env, ABC):
 
     (x_target, y_target) = (0, 0)  # 目標位置
 
+    # 戦車の設定
+    max_cannon_num = 5
     Enemy_num_manual = 3  # 敵戦車の数
     Enemy_num_learn = 1  # 敵戦車の数
+
     Enemy_pos_manual = [0] * (2 * Enemy_num_manual)  # 各敵戦車の位置を記録するリスト
     Enemy_pos_learn = [0] * (2 * Enemy_num_learn)
 
@@ -1594,7 +1117,6 @@ class TankEnv(gym.Env, ABC):
     innerwalls = pygame.sprite.Group()
     outerwalls = pygame.sprite.Group()
     all_object = pygame.sprite.RenderUpdates()
-    false_image = pygame.sprite.Group()
 
     # グループ分け
     Player.containers = all_object, player
@@ -1609,13 +1131,213 @@ class TankEnv(gym.Env, ABC):
     FinishFlag = False
     TimeFlag = True
 
-    Level = 0
+    Level = 3
 
     def __init__(self):
         super().__init__()
 
+        # mapの作成
+        Map.images[0] = load_img("images/tile.png")  # 地面
+        Map.images[1] = load_img("images/wall.png")  # 壁
+        self.map = Map()
+
+        # アクション数定義
+        self.action_space = gym.spaces.Discrete(MOVE_ACTION_NUM + SHOT_ACTION_NUM)
+
+        # 状態の定義
+        self.observation_space = gym.spaces.Dict({
+            "allies": gym.spaces.Dict({
+                "tank_positions": gym.spaces.Box(low=0, high=800, shape=(self.Enemy_num_learn, 2)),
+                "cannon_positions": gym.spaces.Box(low=0, high=800, shape=(self.Enemy_num_learn, self.max_cannon_num, 2))
+            }),
+            "enemies": gym.spaces.Dict({
+                "tank_positions": gym.spaces.Box(low=0, high=800, shape=(self.Enemy_num_manual, 2)),
+                "cannon_positions": gym.spaces.Box(low=0, high=800, shape=(self.Enemy_num_manual, self.max_cannon_num, 2))
+            })
+        })
+        # 報酬の定義
+        self.reward_range = [-1, 3]
+
+        self.reset()
+
+    def reset(self):
+        self.Enemy_pos_manual = [0] * (2 * self.Enemy_num_manual)  # 各敵戦車の位置を記録するリスト
+        self.Enemy_pos_learn = [0] * (2 * self.Enemy_num_learn)
+
+        self.distance_matrix = 0  # 経路的な距離行列
+
+        # 全てのグループを初期化
+        self.player.empty()
+        self.enemies_manual.empty()
+        self.enemies_learn.empty()
+        self.cannons.empty()
+        self.walls.empty()
+        self.innerwalls.empty()
+        self.outerwalls.empty()
+        self.all_object.empty()
+
+        # 終了フラグ
+        self.FinishFlag = False
+        self.TimeFlag = True
+
+        Object.env = copy(self)  # ワールドを参照できるようにする
+
+        # 戦車の準備
+        Player(filename="images/tank_0.png",
+               x=-self.w / 4,
+               y=self.h / 2,
+               v=1.0)
+
+        for i in range(1, self.Enemy_num_manual + 1):  # 敵戦車（手動）
+            Enemy_Manual(filename="images/tank_1.png",
+                         x=self.w * 5 / 6 + random.random() * 10,
+                         y=self.h * i / (self.Enemy_num_manual + 1) + random.random() * 10,
+                         v=1,
+                         dx=0,
+                         dy=0,
+                         firetime=time.time(),
+                         num=i - 1)
+            self.Enemy_pos_manual[2 * (i - 1)] = self.w * 3 / 4
+            self.Enemy_pos_manual[2 * (i - 1) + 1] = self.h * i / (self.Enemy_num_manual + 1)
+
+        for i in range(1, self.Enemy_num_learn + 1):  # 敵戦車（強化学習）
+            Enemy_Learn(filename="images/tank_0.png",
+                        x=self.w * 1 / 6 - random.random() * 10,
+                        y=self.h * i / (self.Enemy_num_manual + 1) - random.random() * 10,
+                        v=1,
+                        dx=0,
+                        dy=0,
+                        firetime=time.time(),
+                        num=i - 1)
+            self.Enemy_pos_learn[2 * (i - 1)] = self.w * 3 / 4
+            self.Enemy_pos_learn[2 * (i - 1) + 1] = self.h * i / (self.Enemy_num_learn + 1)
+
+        # オブジェクト生成
+        self.MakeWalls(self.map)  # 壁を生成
+        # MakeFalseImage()  # 虚像オブジェクトの生成
+
+        self.distance_matrix = self.MakeDistanceMatrix()  # 距離行列の作成
+
+        # 画面の描写
+        self.DrawTiles(self.map)
+        self.all_object.draw(self.screen)  # すべて描写
+        pygame.display.update()  # 描画処理を実行
+
+        pygame.time.wait(300)
+
+        return self._observe()
+
+    def step(self, action):
+        pygame.time.wait(10)  # 更新時間間隔
+        Object.env = copy(self)  # 環境更新
+
+        # 終了フラグが立ってないときに更新
+        if not self.FinishFlag:
+            self.DrawTiles(self.map)  # 背景として床を描画
+            self.all_object.draw(self.screen)  # すべて描写
+            self.all_object.update(action)  # すべて更新
+            # print(player, enemies, cannons, walls)
+
+        # 敵(learn)がいなくなったとき
+        if not self.all_object.has(self.enemies_learn):
+            self.DrawTiles(self.map)  # 背景として床を描画
+            self.all_object.draw(self.screen)  # すべて描写
+            self.screen.blit(self.text2, (self.w / 4, self.h / 4))
+            self.FinishFlag = True
+
+        # 敵(manual)がいなくなったとき
+        if not self.all_object.has(self.enemies_manual):
+            self.DrawTiles(self.map)  # 背景として床を描画
+            self.all_object.draw(self.screen)  # すべて描写
+            self.player.sprite.DrawGun()
+            self.screen.blit(self.text1, (0, self.h / 4))
+            self.FinishFlag = True
+
+        # if FinishFlag and TimeFlag:
+        #     finish = pygame.time.get_ticks()
+        #     dt = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        #     with open("{}.txt".format(dt), 'w') as f:
+        #         print((finish - start) / 1000, file=f)
+        #     TimeFlag = False
+
+        pygame.display.update()  # 画面更新
+
+        # for event in pygame.event.get():
+        #     # 終了フラグが立ってるときはクリックで終了
+        #     if event.type == MOUSEBUTTONDOWN and event.button == 1:
+        #         if self.FinishFlag:
+        #             pygame.quit()
+        #             sys.exit()
+        #         else:
+        #             self.player.sprite.x_target, self.player.sprite.y_target = event.pos
+        #             self.player.sprite.Shot()
+
+        # 状態の更新
+        observation = self._observe()
+        reward = self._get_reward()
+
+        return observation, reward, self.FinishFlag, {}
+
+    def render(self, mode="human", close=False):
+        pass
+
+    def close(self):
+        pygame.quit()
+
+    def _seed(self, seed=None):
+        pass
+
+    def _observe(self):
+        """各戦車の情報を辞書として返す"""
+        observation = {
+            "allies": {
+                "tank_positions": np.zeros((self.Enemy_num_learn, 2)),
+                "cannon_positions": np.zeros((self.Enemy_num_learn, self.max_cannon_num, 2))
+            },
+            "enemies": {
+                "tank_positions": np.zeros((self.Enemy_num_manual, 2)),
+                "cannon_positions": np.zeros((self.Enemy_num_manual, self.max_cannon_num, 2))
+            }
+        }
+        for i, ally in enumerate(self.enemies_learn.sprites()):
+            # 味方の情報を格納
+            observation["allies"]["tank_positions"][i][0] = ally.x
+            observation["allies"]["tank_positions"][i][1] = ally.y
+
+            for j, cannon in enumerate(ally.CannonList):
+                observation["allies"]["cannon_positions"][i][j][0] = cannon.x
+                observation["allies"]["cannon_positions"][i][j][1] = cannon.y
+
+        for i, enemy in enumerate(self.enemies_learn.sprites()):
+            # 味方の情報を格納
+            observation["enemies"]["tank_positions"][i][0] = enemy.x
+            observation["enemies"]["tank_positions"][i][1] = enemy.y
+
+            for j, cannon in enumerate(enemy.CannonList):
+                observation["enemies"]["cannon_positions"][i][j][0] = cannon.x
+                observation["enemies"]["cannon_positions"][i][j][1] = cannon.y
+
+        return observation
+
+    def _get_reward(self):
+        """
+        その状態での報酬を返す
+        報酬は撃破した敵の数×1
+        自分が撃破されたら-1
+        誰も撃破されていなければ，-0.0001
+        """
+        if not self.all_object.has(self.enemies_learn):
+            return -1
+
+        alive = Aliving(self.enemies_manual)
+        if alive == self.Enemy_num_manual:
+            return -0.0001
+        else:
+            return self.Enemy_num_manual - alive
+
     # 壁を配置
-    def MakeWalls(self, m):
+    @staticmethod
+    def MakeWalls(m):
         for i in range(m.row):
             for j in range(m.col):
                 if m.map[i][j] > 0:
@@ -1690,7 +1412,8 @@ class TankEnv(gym.Env, ABC):
         return objects
 
     # 経路的な距離行列の作成
-    def MakeDistanceMatrix(self):
+    @staticmethod
+    def MakeDistanceMatrix():
         m = Map.map  # マップデータ
 
         map_size = np.array(m).size  # マップサイズ（ブロック数）
@@ -1783,7 +1506,7 @@ class TankEnv(gym.Env, ABC):
         pygame.display.update()
 
         # スタート画面でキー入力を待機
-        self.DrawTiles(m)
+        self.DrawTiles(self.map)
         self.all_object.draw(self.screen)  # すべて描写
         img_start = pygame.image.load("images/Start_menu.png")
         self.screen.blit(img_start, (100, 100))
@@ -1801,10 +1524,10 @@ class TankEnv(gym.Env, ABC):
         self.screen.blit(text_start3, (450, 440))
         pygame.display.update()  # 描画処理を実行
 
-        ReadyFlag = True
+        ReadyFlag = False
 
         # レベル設定(最強:3, 協調抜き:2, ベーシック:1)
-        self.Level = 1
+        self.Level = 3
         while ReadyFlag:
             for event in pygame.event.get():
                 if event.type == pygame.KEYDOWN:
@@ -1855,7 +1578,7 @@ class TankEnv(gym.Env, ABC):
 
             # 終了フラグが立ってないときに更新
             if not self.FinishFlag:
-                self.DrawTiles(m)  # 背景として床を描画
+                self.DrawTiles(self.map)  # 背景として床を描画
                 self.all_object.draw(self.screen)  # すべて描写
                 self.all_object.update()  # すべて更新
                 # false_image.draw(screen)
@@ -1863,7 +1586,7 @@ class TankEnv(gym.Env, ABC):
 
             # 敵(learn)がいなくなったとき
             if not self.all_object.has(self.enemies_learn):
-                self.DrawTiles(m)  # 背景として床を描画
+                self.DrawTiles(self.map)  # 背景として床を描画
                 self.all_object.draw(self.screen)  # すべて描写
                 self.enemies_manual.update()
                 self.screen.blit(self.text2, (self.w / 4, self.h / 4))
@@ -1871,7 +1594,7 @@ class TankEnv(gym.Env, ABC):
 
             # 敵(manual)がいなくなったとき
             if not self.all_object.has(self.enemies_manual):
-                self.DrawTiles(m)  # 背景として床を描画
+                self.DrawTiles(self.map)  # 背景として床を描画
                 self.all_object.draw(self.screen)  # すべて描写
                 self.player.sprite.DrawGun()
                 self.screen.blit(self.text1, (0, self.h / 4))

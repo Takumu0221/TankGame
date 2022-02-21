@@ -1090,6 +1090,8 @@ class TankEnv(gym.Env, ABC):
     Enemy_num_manual = 3  # 敵戦車の数
     Enemy_num_learn = 1  # 敵戦車の数
 
+    prev_enemy_num_manual = Enemy_num_manual  # 直前のステップの生存している敵戦車数
+
     Enemy_pos_manual = [0] * (2 * Enemy_num_manual)  # 各敵戦車の位置を記録するリスト
     Enemy_pos_learn = [0] * (2 * Enemy_num_learn)
 
@@ -1229,7 +1231,7 @@ class TankEnv(gym.Env, ABC):
         return self._observe()
 
     def step(self, action):
-        pygame.time.wait(10)  # 更新時間間隔
+        # pygame.time.wait(0)  # 更新時間間隔
         Object.env = copy(self)  # 環境更新
 
         # 強化学習している戦車の行動を設定
@@ -1331,9 +1333,10 @@ class TankEnv(gym.Env, ABC):
             return -1
 
         alive = Aliving(self.enemies_manual)
-        if alive == self.Enemy_num_manual:
-            return -0.0001
+        if alive == self.prev_enemy_num_manual:
+            return 0.0001
         else:
+            self.prev_enemy_num_manual = alive
             return self.Enemy_num_manual - alive
 
     # 壁を配置

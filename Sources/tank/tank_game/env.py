@@ -959,7 +959,7 @@ class Enemy_Manual(Tank):
         # GD = GD_origin * (1 - ((5 * Aliving(enemies) - Remaining) / (10 * Aliving(enemies))))
         self.GD = self.GD_origin
         # RFD = RFD_origin * (1 - ((5 * Aliving(enemies) - Remaining) / (10 * Aliving(enemies))))
-        self.RFD = self.RFD_origi
+        self.RFD = self.RFD_origin
 
 
 # 敵戦車（強化学習）
@@ -975,16 +975,17 @@ class Enemy_Learn(Tank):
         height = self.rect.height
         self.frames = 0  # 射撃間隔を測る際に使用
         self.Shotlog = [1] * 10
+        self.action = None  # 行動
 
-    def update(self, action):
+    def update(self):
         if self.env.all_object.has(self.env.enemies_manual):
-            if MOVE_ACTION_NUM <= action:
-                rad = (action - MOVE_ACTION_NUM) * (2 * math.pi / SHOT_ACTION_NUM)
+            if MOVE_ACTION_NUM <= self.action:
+                rad = (self.action - MOVE_ACTION_NUM) * (2 * math.pi / SHOT_ACTION_NUM)
                 self.Shot(rad)  # 砲弾発射
 
             self.AdjustCannonList()   # 砲弾の整理
 
-            if action < MOVE_ACTION_NUM:
+            if self.action < MOVE_ACTION_NUM:
                 move_list = [
                     (0, 1),
                     (1, 1),
@@ -995,7 +996,7 @@ class Enemy_Learn(Tank):
                     (-1, 0),
                     (-1, 1),
                 ]
-                (dx, dy) = move_list[action]
+                (dx, dy) = move_list[self.action]
                 self.Move(dx, dy)  # 戦車の移動
 
             # 座標の更新
@@ -1074,6 +1075,10 @@ class Enemy_Learn(Tank):
                 self.Shotlog.pop(0)  # 要素数の0
                 self.Shotlog.append(0)  # 値の0
 
+    # アクションの設定
+    def set_action(self, action):
+        self.action = action
+
 
 class TankEnv(gym.Env, ABC):
     (w, h) = (800, 600)  # 画面サイズ
@@ -1146,14 +1151,10 @@ class TankEnv(gym.Env, ABC):
 
         # 状態の定義
         self.observation_space = gym.spaces.Dict({
-            "allies": gym.spaces.Dict({
-                "tank_positions": gym.spaces.Box(low=0, high=800, shape=(self.Enemy_num_learn, 2)),
-                "cannon_positions": gym.spaces.Box(low=0, high=800, shape=(self.Enemy_num_learn, self.max_cannon_num, 2))
-            }),
-            "enemies": gym.spaces.Dict({
-                "tank_positions": gym.spaces.Box(low=0, high=800, shape=(self.Enemy_num_manual, 2)),
-                "cannon_positions": gym.spaces.Box(low=0, high=800, shape=(self.Enemy_num_manual, self.max_cannon_num, 2))
-            })
+            "ally_tank_positions": gym.spaces.Box(low=0, high=800, shape=(self.Enemy_num_learn, 2)),
+            "ally_cannon_positions": gym.spaces.Box(low=0, high=800, shape=(self.Enemy_num_learn, self.max_cannon_num, 2)),
+            "enemy_tank_positions": gym.spaces.Box(low=0, high=800, shape=(self.Enemy_num_manual, 2)),
+            "enemy_cannon_positions": gym.spaces.Box(low=0, high=800, shape=(self.Enemy_num_manual, self.max_cannon_num, 2))
         })
         # 報酬の定義
         self.reward_range = [-1, 3]
@@ -1231,11 +1232,15 @@ class TankEnv(gym.Env, ABC):
         pygame.time.wait(10)  # 更新時間間隔
         Object.env = copy(self)  # 環境更新
 
+        # 強化学習している戦車の行動を設定
+        for ally in self.enemies_learn.sprites():
+            ally.set_action(action)
+
         # 終了フラグが立ってないときに更新
         if not self.FinishFlag:
             self.DrawTiles(self.map)  # 背景として床を描画
             self.all_object.draw(self.screen)  # すべて描写
-            self.all_object.update(action)  # すべて更新
+            self.all_object.update()  # すべて更新
             # print(player, enemies, cannons, walls)
 
         # 敵(learn)がいなくなったとき
@@ -1290,34 +1295,30 @@ class TankEnv(gym.Env, ABC):
     def _observe(self):
         """各戦車の情報を辞書として返す"""
         observation = {
-            "allies": {
-                "tank_positions": np.zeros((self.Enemy_num_learn, 2)),
-                "cannon_positions": np.zeros((self.Enemy_num_learn, self.max_cannon_num, 2))
-            },
-            "enemies": {
-                "tank_positions": np.zeros((self.Enemy_num_manual, 2)),
-                "cannon_positions": np.zeros((self.Enemy_num_manual, self.max_cannon_num, 2))
-            }
+            "ally_tank_positions": np.zeros((self.Enemy_num_learn, 2)),
+            "ally_cannon_positions": np.zeros((self.Enemy_num_learn, self.max_cannon_num, 2)),
+            "enemy_tank_positions": np.zeros((self.Enemy_num_manual, 2)),
+            "enemy_cannon_positions": np.zeros((self.Enemy_num_manual, self.max_cannon_num, 2))
         }
         for i, ally in enumerate(self.enemies_learn.sprites()):
             # 味方の情報を格納
-            observation["allies"]["tank_positions"][i][0] = ally.x
-            observation["allies"]["tank_positions"][i][1] = ally.y
+            observation["ally_tank_positions"][i][0] = ally.x
+            observation["ally_tank_positions"][i][1] = ally.y
 
             for j, cannon in enumerate(ally.CannonList):
-                observation["allies"]["cannon_positions"][i][j][0] = cannon.x
-                observation["allies"]["cannon_positions"][i][j][1] = cannon.y
+                observation["ally_cannon_positions"][i][j][0] = cannon.x
+                observation["ally_cannon_positions"][i][j][1] = cannon.y
 
-        for i, enemy in enumerate(self.enemies_learn.sprites()):
+        for i, enemy in enumerate(self.enemies_manual.sprites()):
             # 味方の情報を格納
-            observation["enemies"]["tank_positions"][i][0] = enemy.x
-            observation["enemies"]["tank_positions"][i][1] = enemy.y
+            observation["enemy_tank_positions"][i][0] = enemy.x
+            observation["enemy_tank_positions"][i][1] = enemy.y
 
             for j, cannon in enumerate(enemy.CannonList):
-                observation["enemies"]["cannon_positions"][i][j][0] = cannon.x
-                observation["enemies"]["cannon_positions"][i][j][1] = cannon.y
+                observation["enemy_cannon_positions"][i][j][0] = cannon.x
+                observation["enemy_cannon_positions"][i][j][1] = cannon.y
 
-        return observation
+        return utils.flatten_dict(self.observation_space, observation)
 
     def _get_reward(self):
         """

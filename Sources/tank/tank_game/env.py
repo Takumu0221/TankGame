@@ -7,6 +7,7 @@ from abc import ABC
 from copy import copy
 
 import gym.spaces
+import pygame.time
 from gym.spaces import utils
 import numpy as np
 
@@ -1099,9 +1100,12 @@ class TankEnv(gym.Env, ABC):
 
     # pygameの準備
     pygame.init()  # pygame初期化
+    pygame.mixer.quit()  # サウンド周り無効化
     pygame.display.set_mode((w, h), 0, 32)  # 画面設定
     pygame.display.set_caption("TANK GAME")
     screen = pygame.display.get_surface()
+    clock = pygame.time.Clock()
+    clock.tick_busy_loop(180)
 
     # フォント
     font = pygame.font.SysFont(None, 80)
@@ -1226,7 +1230,7 @@ class TankEnv(gym.Env, ABC):
         self.all_object.draw(self.screen)  # すべて描写
         pygame.display.update()  # 描画処理を実行
 
-        pygame.time.wait(300)
+        # pygame.time.wait(300)
 
         return self._observe()
 
@@ -1267,8 +1271,6 @@ class TankEnv(gym.Env, ABC):
         #         print((finish - start) / 1000, file=f)
         #     TimeFlag = False
 
-        pygame.display.update()  # 画面更新
-
         # for event in pygame.event.get():
         #     # 終了フラグが立ってるときはクリックで終了
         #     if event.type == MOUSEBUTTONDOWN and event.button == 1:
@@ -1286,7 +1288,8 @@ class TankEnv(gym.Env, ABC):
         return observation, reward, self.FinishFlag, {}
 
     def render(self, mode="human", close=False):
-        pass
+        if mode == 'human':
+            pygame.display.update()  # 画面更新
 
     def close(self):
         pygame.quit()
@@ -1325,19 +1328,23 @@ class TankEnv(gym.Env, ABC):
     def _get_reward(self):
         """
         その状態での報酬を返す
-        報酬は撃破した敵の数×1
+        相手を1体撃破したら+1
         自分が撃破されたら-1
         誰も撃破されていなければ，-0.0001
         """
         if not self.all_object.has(self.enemies_learn):
-            return -1
+            return -1.0
 
         alive = Aliving(self.enemies_manual)
         if alive == self.prev_enemy_num_manual:
             return 0.0001
         else:
             self.prev_enemy_num_manual = alive
-            return self.Enemy_num_manual - alive
+            return 1.0
+
+    def set_fps(self, fps):
+        # pygameのFPSを設定
+        self.clock.tick(fps)
 
     # 壁を配置
     @staticmethod

@@ -1100,6 +1100,7 @@ class TankEnv(gym.Env, ABC):
     distance_matrix = 0  # 経路的な距離行列
 
     # pygameの準備
+    os.environ['SDL_VIDEODRIVER'] = 'dummy'
     pygame.init()  # pygame初期化
     pygame.mixer.quit()  # サウンド周り無効化
     pygame.display.set_mode((w, h), 0, 32)  # 画面設定

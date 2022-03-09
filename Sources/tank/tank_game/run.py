@@ -47,7 +47,7 @@ if tf:
         load_filename = filename
         break
 
-history = dqn.fit(tank_env, nb_steps=1000000, visualize=True, verbose=2)  # 学習
+history = dqn.fit(tank_env, nb_steps=10000000, visualize=True, verbose=2)  # 学習
 
 tank_env.env.set_fps(30)  # fpsの更新
 dqn.test(tank_env, nb_episodes=1, visualize=True)  # テスト

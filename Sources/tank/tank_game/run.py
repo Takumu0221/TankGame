@@ -20,7 +20,7 @@ tank_env = gym.make('tank_game-v0')
 nb_actions = tank_env.action_space.n
 
 model = Sequential()
-model.add(Flatten(input_shape=(1, utils.flatdim_dict(tank_env.observation_space))))
+model.add(Flatten(input_shape=(1, utils._flatdim_dict(tank_env.observation_space))))
 model.add(Dense(16))
 model.add(Activation('relu'))
 model.add(Dense(16))

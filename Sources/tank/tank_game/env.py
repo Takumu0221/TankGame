@@ -1325,7 +1325,7 @@ class TankEnv(gym.Env, ABC):
                 observation["enemy_cannon_positions"][i][j][0] = cannon.x
                 observation["enemy_cannon_positions"][i][j][1] = cannon.y
 
-        return utils.flatten_dict(self.observation_space, observation)
+        return utils.flatten(self.observation_space, observation)
 
     def _get_reward(self):
         """

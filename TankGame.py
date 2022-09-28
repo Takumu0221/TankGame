@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import os
+
 import pygame
 from pygame.locals import *
 import math
@@ -1418,6 +1420,7 @@ def main():
         if FinishFlag and TimeFlag:
             finish = pygame.time.get_ticks()
             dt = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            os.makedirs('result', exist_ok=True)
             with open("result/{}.txt".format(dt), 'w') as f:
                 print((finish - start) / 1000, file=f)
             TimeFlag = False
